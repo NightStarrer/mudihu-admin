@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MuDiHu Operations OS
 
-## Getting Started
+Internal agency operations platform for **MuDiHu** (Muttugodu Digital Hub).
 
-First, run the development server:
+## Features (Phase 1 MVP)
+
+- Authentication (Supabase) with admin / employee roles
+- Client management (CRUD, search, notes, linked proposals)
+- Proposal builder (phases, grouped development areas, GST totals)
+- Branded PDF export via React PDF (`@react-pdf/renderer`)
+- Dashboard overview
+- Branding settings (colors, footer, logo upload)
+- AI suggestion stubs (industry-based preview)
+
+## Tech stack
+
+- **Frontend:** Next.js 16, TypeScript, Tailwind CSS, shadcn/ui, Framer Motion
+- **Backend:** Supabase (Auth, PostgreSQL, Storage, RLS)
+- **PDF:** React PDF in API routes
+- **Deploy:** Vercel + Cloudflare DNS + Supabase
+
+## Setup
+
+### 1. Supabase project
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Run migrations in order from `supabase/migrations/`.
+3. Enable **Email** auth under Authentication → Providers.
+4. Add redirect URLs: `http://localhost:3000/**` and your production Vercel URL.
+
+### 2. Environment variables
+
+Copy `.env.example` to `.env.local`:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Fill in Supabase URL, anon key, and service role key (for PDF storage uploads).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. First admin user
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Sign up via the app at `/login` (or create user in Supabase Auth).
+2. In SQL Editor, promote your user:
 
-## Learn More
+```sql
+UPDATE profiles SET role = 'admin' WHERE id = 'YOUR_USER_UUID';
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. Run locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+### 5. Deploy to Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Push to GitHub and import in Vercel.
+2. Add the same env vars in Vercel project settings.
+3. Point Cloudflare DNS to Vercel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Logo
+
+A placeholder **MH** mark is used until you upload the official MuDiHu logo under **Settings → Branding**.
+
+## Project structure
+
+```
+src/
+  app/
+    (auth)/login/
+    dashboard/          # clients, proposals, settings
+    api/pdf/proposal/   # PDF generation
+  components/
+    pdf/                # React-PDF documents
+  lib/
+    supabase/
+    proposals/
+    pdf/
+    ai/                 # stub provider
+supabase/migrations/
+```
+
+## License
+
+Private — MuDiHu internal use.
