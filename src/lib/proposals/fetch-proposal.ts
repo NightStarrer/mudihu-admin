@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { parseProjectBrief } from "@/types/client-project-brief";
 import type { ProposalWithRelations } from "@/types/database";
 
 export async function fetchProposalWithRelations(
@@ -59,6 +60,7 @@ export async function fetchProposalWithRelations(
     client: {
       ...client,
       currency_code: client.currency_code ?? "INR",
+      project_brief: parseProjectBrief(client.project_brief),
     },
     phases: phasesWithGroups,
   };

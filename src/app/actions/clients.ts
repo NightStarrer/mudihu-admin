@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth/session";
+import {
+  parseBriefFromFormData,
+  parseIndustryTags,
+} from "@/lib/clients/parse-brief-form";
 
 export async function createClientAction(formData: FormData) {
   const { profile } = await requireProfile();
@@ -75,4 +79,21 @@ export async function addClientNoteAction(clientId: string, content: string) {
 
   if (error) throw new Error(error.message);
   revalidatePath(`/dashboard/clients/${clientId}`);
+}
+
+export async function updateClientBriefAction(id: string, formData: FormData) {
+  await requireProfile();
+  const supabase = await createClient();
+
+  const project_brief = parseBriefFromFormData(formData);
+  const industry_tags = parseIndustryTags(formData);
+
+  const { error } = await supabase
+    .from("clients")
+    .update({ project_brief, industry_tags })
+    .eq("id", id);
+
+  if (error) throw new Error(error.message);
+  revalidatePath("/dashboard/clients");
+  revalidatePath(`/dashboard/clients/${id}`);
 }

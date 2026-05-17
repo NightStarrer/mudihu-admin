@@ -57,6 +57,9 @@ export async function updateProposalMetaAction(
     invoice_date?: string | null;
     due_date?: string | null;
     invoice_number?: string | null;
+    discount_type?: "none" | "percent" | "fixed";
+    discount_value?: number;
+    discount_label?: string | null;
   }
 ) {
   await requireProfile();
@@ -82,6 +85,11 @@ export async function updateProposalMetaAction(
     update.due_date = parseOptionalDate(data.due_date);
   if (data.invoice_number !== undefined)
     update.invoice_number = data.invoice_number?.trim() || null;
+  if (data.discount_type !== undefined) update.discount_type = data.discount_type;
+  if (data.discount_value !== undefined)
+    update.discount_value = data.discount_value;
+  if (data.discount_label !== undefined)
+    update.discount_label = data.discount_label?.trim() || "Discount";
 
   const { error } = await supabase.from("proposals").update(update).eq("id", id);
   if (error) throw new Error(error.message);

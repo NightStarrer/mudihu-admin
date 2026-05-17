@@ -1,3 +1,5 @@
+import type { ClientProjectBrief } from "@/types/client-project-brief";
+
 export type UserRole = "admin" | "employee";
 export type ProposalStatus = "draft" | "sent" | "accepted" | "archived";
 
@@ -45,6 +47,7 @@ export interface Client {
   address: string | null;
   business_category: string | null;
   industry_tags: string[] | null;
+  project_brief: ClientProjectBrief | Record<string, unknown> | null;
   notes: string | null;
   currency_code: string;
   created_at: string;
@@ -78,6 +81,9 @@ export interface Proposal {
   due_date: string | null;
   invoice_number: string | null;
   last_invoice_exported_at: string | null;
+  discount_type: string;
+  discount_value: number;
+  discount_label: string | null;
   created_at: string;
   updated_at: string;
 }

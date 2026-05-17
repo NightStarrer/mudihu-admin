@@ -30,8 +30,12 @@ import {
 } from "@/app/actions/proposals";
 import {
   calculateProposalTotals,
+  discountFromProposal,
   formatMoney,
 } from "@/lib/proposals/calculate-totals";
+import { discountSummaryLine } from "@/lib/proposals/discount";
+import { CoverLetterCard } from "@/components/proposals/cover-letter-card";
+import { DiscountFields } from "@/components/proposals/discount-fields";
 import { DocumentDatesCard } from "@/components/proposals/document-dates-card";
 import { currencySymbolForUi } from "@/lib/money/currency";
 import type { PdfDocumentType } from "@/lib/proposals/document-types";
@@ -42,7 +46,12 @@ import type {
 } from "@/types/database";
 import { toast } from "sonner";
 import { Plus, Trash2, Download, Sparkles } from "lucide-react";
-import { getProposalSuggestions } from "@/lib/ai/providers/stub";
+import Link from "next/link";
+import { getProposalSuggestions } from "@/lib/ai/providers/index";
+import { clientBriefHref } from "@/components/clients/client-detail-tabs";
+import { parseProjectBrief } from "@/types/client-project-brief";
+import type { ProposalSuggestion } from "@/lib/ai/types";
+import type { SuggestionSource } from "@/lib/ai/types";
 
 export function ProposalBuilder({
   proposal,
@@ -54,27 +63,31 @@ export function ProposalBuilder({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [exporting, setExporting] = useState<PdfDocumentType | null>(null);
-  const [suggestions, setSuggestions] = useState<
-    Awaited<ReturnType<typeof getProposalSuggestions>>["suggestions"]
-  >([]);
+  const [suggestions, setSuggestions] = useState<ProposalSuggestion[]>([]);
+  const [suggestionSource, setSuggestionSource] =
+    useState<SuggestionSource | null>(null);
 
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
+  const discount = discountFromProposal(proposal);
   const proposalTotals = calculateProposalTotals(
     proposal.phases,
     gstRate,
-    "proposal"
+    "proposal",
+    discount
   );
   const invoiceTotals = calculateProposalTotals(
     proposal.phases,
     gstRate,
-    "invoice"
+    "invoice",
+    discount
   );
   const costSheetTotals = calculateProposalTotals(
     proposal.phases,
     gstRate,
-    "cost_sheet"
+    "cost_sheet",
+    discount
   );
 
   async function handleExportPdf(documentType: PdfDocumentType) {
@@ -100,21 +113,67 @@ export function ProposalBuilder({
     }
   }
 
+  const firstPhaseId = proposal.phases[0]?.id;
+
   async function loadSuggestions() {
     const result = await getProposalSuggestions({
       businessCategory: proposal.client.business_category,
       industryTags: proposal.client.industry_tags ?? [],
       proposalTitle: proposal.title,
+      projectBrief: parseProjectBrief(proposal.client.project_brief),
+      librarySections: library.map((l) => ({
+        id: l.id,
+        title: l.title,
+        description: l.description,
+        default_amount: Number(l.default_amount),
+        category: l.category,
+      })),
     });
     setSuggestions(result.suggestions);
+    setSuggestionSource(result.source);
     if (!result.suggestions.length) {
-      toast.info("No suggestions for this category yet (AI Phase 3)");
+      toast.info("No suggestions yet — complete the client project brief");
+    } else {
+      toast.success(
+        result.source === "rules"
+          ? "Suggestions from project brief"
+          : "AI suggestions ready"
+      );
     }
+  }
+
+  async function applySuggestion(s: ProposalSuggestion) {
+    if (!firstPhaseId) {
+      toast.error("Add a phase first");
+      return;
+    }
+    startTransition(async () => {
+      if (s.librarySectionId) {
+        await insertFromLibraryAction(
+          firstPhaseId,
+          proposal.id,
+          s.librarySectionId
+        );
+      } else {
+        await addGroupAction(firstPhaseId, proposal.id, {
+          title: s.title,
+          description: s.description,
+          amount: s.suggestedAmount,
+        });
+      }
+      router.refresh();
+      toast.success("Added to proposal");
+    });
   }
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <div className="space-y-6 lg:col-span-2">
+        <CoverLetterCard
+          proposalId={proposal.id}
+          customNotes={proposal.custom_notes}
+        />
+
         <Card className="border-border/60">
           <CardHeader>
             <CardTitle className="text-lg">Proposal details</CardTitle>
@@ -203,6 +262,13 @@ export function ProposalBuilder({
         </Card>
 
         <DocumentDatesCard proposal={proposal} />
+
+        <DiscountFields
+          proposalId={proposal.id}
+          discountType={proposal.discount_type ?? "none"}
+          discountValue={Number(proposal.discount_value ?? 0)}
+          discountLabel={proposal.discount_label}
+        />
 
         {proposal.phases.map((phase) => (
           <Card key={phase.id} className="border-border/60">
@@ -433,21 +499,6 @@ export function ProposalBuilder({
                 }
               />
             </div>
-            <div className="space-y-2">
-              <Label>Custom notes</Label>
-              <Textarea
-                defaultValue={proposal.custom_notes ?? ""}
-                rows={2}
-                onBlur={(e) =>
-                  startTransition(async () => {
-                    await updateProposalMetaAction(proposal.id, {
-                      custom_notes: e.target.value || null,
-                    });
-                    router.refresh();
-                  })
-                }
-              />
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -468,6 +519,28 @@ export function ProposalBuilder({
               </div>
             ))}
             <Separator />
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{fmt(proposalTotals.subtotal)}</span>
+            </div>
+            {proposalTotals.discountAmount > 0 ? (
+              <>
+                <div className="flex justify-between text-primary">
+                  <span>
+                    {discountSummaryLine(discount, proposalTotals.discountAmount)}
+                  </span>
+                  <span>- {fmt(proposalTotals.discountAmount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">After discount</span>
+                  <span>{fmt(proposalTotals.afterDiscount)}</span>
+                </div>
+              </>
+            ) : null}
+            <div className="flex justify-between">
+              <span>GST ({proposal.gst_rate}%)</span>
+              <span>{fmt(proposalTotals.gstAmount)}</span>
+            </div>
             <div className="flex justify-between font-medium">
               <span>Total</span>
               <span>{fmt(proposalTotals.total)}</span>
@@ -482,6 +555,14 @@ export function ProposalBuilder({
               <span>Subtotal</span>
               <span>{fmt(invoiceTotals.subtotal)}</span>
             </div>
+            {invoiceTotals.discountAmount > 0 ? (
+              <div className="flex justify-between text-primary">
+                <span>
+                  {discountSummaryLine(discount, invoiceTotals.discountAmount)}
+                </span>
+                <span>- {fmt(invoiceTotals.discountAmount)}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between">
               <span>GST ({proposal.gst_rate}%)</span>
               <span>{fmt(invoiceTotals.gstAmount)}</span>
@@ -541,11 +622,36 @@ export function ProposalBuilder({
             <Button variant="outline" size="sm" onClick={loadSuggestions}>
               Get suggestions
             </Button>
+            {suggestionSource ? (
+              <p className="text-xs text-muted-foreground capitalize">
+                Source: {suggestionSource.replace("_", " ")}
+              </p>
+            ) : null}
+            {suggestions.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                <Link
+                  href={clientBriefHref(proposal.client.id)}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Complete client brief
+                </Link>{" "}
+                for better suggestions.
+              </p>
+            ) : null}
             {suggestions.map((s, i) => (
-              <div key={i} className="rounded border p-2 text-xs">
+              <div key={i} className="space-y-2 rounded border p-2 text-xs">
                 <p className="font-medium">{s.title}</p>
                 <p className="text-muted-foreground">{s.description}</p>
                 <p className="mt-1">{fmt(s.suggestedAmount)}</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="h-7 w-full"
+                  disabled={pending || !firstPhaseId}
+                  onClick={() => applySuggestion(s)}
+                >
+                  Add to proposal
+                </Button>
               </div>
             ))}
           </CardContent>

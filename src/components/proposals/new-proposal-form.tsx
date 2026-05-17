@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/select";
 import { createProposalAction } from "@/app/actions/proposals";
 import type { Client } from "@/types/database";
+import { summarizeProjectBrief } from "@/lib/clients/brief-summary";
+import { parseProjectBrief } from "@/types/client-project-brief";
 import { toast } from "sonner";
 
 export function NewProposalForm({ clients }: { clients: Client[] }) {
@@ -22,11 +24,19 @@ export function NewProposalForm({ clients }: { clients: Client[] }) {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [clientId, setClientId] = useState("");
+  const [description, setDescription] = useState("");
 
   useEffect(() => {
     const preselect = searchParams.get("client");
     if (preselect) setClientId(preselect);
   }, [searchParams]);
+
+  useEffect(() => {
+    const client = clients.find((c) => c.id === clientId);
+    if (!client) return;
+    const summary = summarizeProjectBrief(parseProjectBrief(client.project_brief));
+    if (summary) setDescription(summary);
+  }, [clientId, clients]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -81,7 +91,13 @@ export function NewProposalForm({ clients }: { clients: Client[] }) {
       </div>
       <div className="space-y-2">
         <Label htmlFor="description">Description</Label>
-        <Textarea id="description" name="description" rows={3} />
+        <Textarea
+          id="description"
+          name="description"
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="gst_rate">GST %</Label>

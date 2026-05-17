@@ -3,7 +3,11 @@ import { createPdfStyles } from "@/lib/pdf/theme";
 import { getDocumentDate, formatPdfDateShort } from "@/lib/pdf/dates";
 import { formatPdfMoney } from "@/lib/money/currency";
 import type { BrandingTokens, ProposalWithRelations } from "@/types/database";
-import { calculateProposalTotals } from "@/lib/proposals/calculate-totals";
+import {
+  calculateProposalTotals,
+  discountFromProposal,
+} from "@/lib/proposals/calculate-totals";
+import { discountSummaryLine } from "@/lib/proposals/discount";
 import {
   filterPhasesForDocument,
   PDF_DOCUMENT_LABELS,
@@ -31,30 +35,13 @@ function BankDetailsBlock({
   if (!lines.length) return null;
 
   return (
-    <View style={{ marginTop: 16 }}>
+    <View style={styles.sectionBlock}>
       <Text style={styles.sectionLabel}>Payment details</Text>
       {lines.map((line, i) => (
         <Text key={i} style={styles.bodyText}>
           {line}
         </Text>
       ))}
-    </View>
-  );
-}
-
-function MetaBlock({
-  label,
-  value,
-  styles,
-}: {
-  label: string;
-  value: string;
-  styles: ReturnType<typeof createPdfStyles>;
-}) {
-  return (
-    <View>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue}>{value}</Text>
     </View>
   );
 }
@@ -73,10 +60,12 @@ export function ProposalDocument({
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatPdfMoney(n, currency);
   const phases = filterPhasesForDocument(proposal.phases, documentType);
+  const discount = discountFromProposal(proposal);
   const totals = calculateProposalTotals(
     proposal.phases,
     Number(proposal.gst_rate),
-    documentType
+    documentType,
+    discount
   );
   const paymentTerms =
     (proposal.payment_terms as { text?: string })?.text ?? "";
@@ -91,13 +80,15 @@ export function ProposalDocument({
     minute: "2-digit",
   });
 
+  const customMessage = proposal.custom_notes?.trim();
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header} fixed>
           <View style={styles.headerLeft}>
             {branding.logoUrl ? (
-              <Image src={branding.logoUrl} style={{ width: 44, height: 44 }} />
+              <Image src={branding.logoUrl} style={{ width: 42, height: 42 }} />
             ) : (
               <View style={styles.logoBox}>
                 <Text style={styles.logoText}>MH</Text>
@@ -109,59 +100,73 @@ export function ProposalDocument({
             </View>
           </View>
           <View style={styles.headerRight}>
-            <MetaBlock label="Document date" value={documentDate} styles={styles} />
+            <Text style={styles.metaLabel}>Document date</Text>
+            <Text style={styles.metaValue}>{documentDate}</Text>
             {documentType === "invoice" && proposal.invoice_number ? (
-              <MetaBlock
-                label="Invoice no."
-                value={proposal.invoice_number}
-                styles={styles}
-              />
+              <>
+                <Text style={styles.metaLabel}>Invoice no.</Text>
+                <Text style={styles.metaValue}>{proposal.invoice_number}</Text>
+              </>
             ) : null}
-            <MetaBlock label="Currency" value={currency} styles={styles} />
           </View>
         </View>
 
-        <Text style={styles.title}>{proposal.title}</Text>
-        {proposal.description ? (
-          <Text style={styles.subtitle}>{proposal.description}</Text>
-        ) : null}
+        <View style={styles.titleBlock}>
+          <Text style={styles.title}>{proposal.title}</Text>
+          {proposal.description ? (
+            <Text style={styles.subtitle}>{proposal.description}</Text>
+          ) : null}
+        </View>
 
-        {(documentType === "invoice" && proposal.due_date) ||
-        documentType !== "invoice" ? (
-          <View style={styles.datesRow}>
-            {documentType === "invoice" && proposal.due_date ? (
-              <View style={styles.dateCell}>
-                <Text style={styles.metaLabel}>Due date</Text>
-                <Text style={styles.metaValue}>
-                  {formatPdfDateShort(proposal.due_date)}
-                </Text>
-              </View>
-            ) : null}
-            {proposal.proposal_date && documentType === "proposal" ? (
-              <View style={styles.dateCell}>
-                <Text style={styles.metaLabel}>Valid from</Text>
-                <Text style={styles.metaValue}>
-                  {formatPdfDateShort(proposal.proposal_date)}
-                </Text>
-              </View>
-            ) : null}
+        {customMessage ? (
+          <View style={styles.messageBox}>
+            <Text style={styles.messageText}>{customMessage}</Text>
           </View>
         ) : null}
 
-        <View style={styles.clientBlock}>
-          <Text style={styles.clientLabel}>Prepared for</Text>
-          <Text style={styles.clientName}>{proposal.client.company_name}</Text>
-          {proposal.client.contact_person ? (
-            <Text style={styles.bodyText}>{proposal.client.contact_person}</Text>
-          ) : null}
-          {proposal.client.email ? (
-            <Text style={styles.bodyText}>{proposal.client.email}</Text>
-          ) : null}
-          {proposal.client.gst_number ? (
-            <Text style={styles.bodyText}>
-              GSTIN: {proposal.client.gst_number}
+        <View style={styles.infoGrid}>
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardLabel}>Prepared for</Text>
+            <Text style={styles.infoLineStrong}>
+              {proposal.client.company_name}
             </Text>
-          ) : null}
+            {proposal.client.contact_person ? (
+              <Text style={styles.infoLine}>{proposal.client.contact_person}</Text>
+            ) : null}
+            {proposal.client.email ? (
+              <Text style={styles.infoLine}>{proposal.client.email}</Text>
+            ) : null}
+            {proposal.client.gst_number ? (
+              <Text style={styles.infoLine}>GSTIN: {proposal.client.gst_number}</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.infoCard}>
+            <Text style={styles.infoCardLabel}>Details</Text>
+            <Text style={styles.infoLine}>
+              Currency: {currency}
+            </Text>
+            {documentType === "proposal" && proposal.proposal_date ? (
+              <Text style={styles.infoLine}>
+                Valid from: {formatPdfDateShort(proposal.proposal_date)}
+              </Text>
+            ) : null}
+            {documentType === "cost_sheet" && proposal.cost_sheet_date ? (
+              <Text style={styles.infoLine}>
+                Cost sheet date: {formatPdfDateShort(proposal.cost_sheet_date)}
+              </Text>
+            ) : null}
+            {documentType === "invoice" && proposal.invoice_date ? (
+              <Text style={styles.infoLine}>
+                Invoice date: {formatPdfDateShort(proposal.invoice_date)}
+              </Text>
+            ) : null}
+            {documentType === "invoice" && proposal.due_date ? (
+              <Text style={styles.infoLine}>
+                Due date: {formatPdfDateShort(proposal.due_date)}
+              </Text>
+            ) : null}
+          </View>
         </View>
 
         {phases.length === 0 ? (
@@ -170,24 +175,34 @@ export function ProposalDocument({
             inclusion settings on the proposal and export again.
           </Text>
         ) : (
-          phases.map((phase) => (
-            <View key={phase.id} wrap={false}>
-              <Text style={styles.phaseTitle}>{phase.name}</Text>
-              {phase.groups.map((group) => (
-                <View key={group.id} style={styles.groupRow}>
-                  <View style={{ flex: 1, paddingRight: 16 }}>
-                    <Text style={styles.groupTitle}>{group.title}</Text>
-                    {group.description ? (
-                      <Text style={styles.groupDesc}>{group.description}</Text>
-                    ) : null}
-                  </View>
-                  <Text style={styles.amount}>
-                    {fmt(Number(group.amount))}
-                  </Text>
-                </View>
-              ))}
+          <>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderText, { flex: 1 }]}>
+                Description
+              </Text>
+              <Text style={[styles.tableHeaderText, { width: 76, textAlign: "right" }]}>
+                Amount
+              </Text>
             </View>
-          ))
+            {phases.map((phase) => (
+              <View key={phase.id}>
+                <Text style={styles.phaseTitle}>{phase.name}</Text>
+                {phase.groups.map((group) => (
+                  <View key={group.id} style={styles.groupRow}>
+                    <View style={{ flex: 1, paddingRight: 12 }}>
+                      <Text style={styles.groupTitle}>{group.title}</Text>
+                      {group.description ? (
+                        <Text style={styles.groupDesc}>{group.description}</Text>
+                      ) : null}
+                    </View>
+                    <Text style={styles.amount}>
+                      {fmt(Number(group.amount))}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ))}
+          </>
         )}
 
         <View style={styles.totalsBox}>
@@ -197,17 +212,33 @@ export function ProposalDocument({
               <Text>{fmt(pt.subtotal)}</Text>
             </View>
           ))}
-          <View style={[styles.totalRow, { marginTop: 8 }]}>
-            <Text>Subtotal</Text>
-            <Text>{fmt(totals.subtotal)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text>GST ({proposal.gst_rate}%)</Text>
-            <Text>{fmt(totals.gstAmount)}</Text>
-          </View>
-          <View style={[styles.totalRow, { marginTop: 8 }]}>
-            <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
-            <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>
+          <View style={styles.totalDivider}>
+            <View style={styles.totalRow}>
+              <Text>Subtotal</Text>
+              <Text>{fmt(totals.subtotal)}</Text>
+            </View>
+            {totals.discountAmount > 0 ? (
+              <View style={styles.totalRow}>
+                <Text>
+                  {discountSummaryLine(discount, totals.discountAmount)}
+                </Text>
+                <Text>- {fmt(totals.discountAmount)}</Text>
+              </View>
+            ) : null}
+            {totals.discountAmount > 0 ? (
+              <View style={styles.totalRow}>
+                <Text>Amount after discount</Text>
+                <Text>{fmt(totals.afterDiscount)}</Text>
+              </View>
+            ) : null}
+            <View style={styles.totalRow}>
+              <Text>GST ({proposal.gst_rate}%)</Text>
+              <Text>{fmt(totals.gstAmount)}</Text>
+            </View>
+            <View style={[styles.totalRow, { marginTop: 6 }]}>
+              <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
+              <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>
+            </View>
           </View>
         </View>
 
@@ -216,33 +247,21 @@ export function ProposalDocument({
         ) : null}
 
         {paymentTerms ? (
-          <View>
+          <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Payment terms</Text>
             <Text style={styles.bodyText}>{paymentTerms}</Text>
           </View>
         ) : null}
 
         {proposal.complimentary_services ? (
-          <View>
+          <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Complimentary services</Text>
             <Text style={styles.bodyText}>{proposal.complimentary_services}</Text>
           </View>
         ) : null}
 
-        {proposal.custom_notes ? (
-          <View>
-            <Text style={styles.sectionLabel}>Additional notes</Text>
-            <Text style={styles.bodyText}>{proposal.custom_notes}</Text>
-          </View>
-        ) : null}
-
         <Text style={styles.footer} fixed>
-          {branding.footerText}
-          {" · "}
-          Generated {generatedAt}
-          {proposal.last_invoice_exported_at && documentType === "invoice"
-            ? ` · Last exported ${formatPdfDateShort(proposal.last_invoice_exported_at.slice(0, 10))}`
-            : ""}
+          {branding.footerText} · Generated {generatedAt}
         </Text>
       </Page>
     </Document>
