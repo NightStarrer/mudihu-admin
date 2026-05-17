@@ -1,4 +1,5 @@
 import type { ProposalGroup, ProposalPhase } from "@/types/database";
+import { formatMoney } from "@/lib/money/currency";
 import {
   filterPhasesForDocument,
   type PdfDocumentType,
@@ -28,10 +29,9 @@ export function calculateProposalTotals(
   return { phaseTotals, subtotal, gstAmount, total };
 }
 
+/** @deprecated Prefer formatMoney(amount, currencyCode) */
 export function formatINR(amount: number) {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return formatMoney(amount, "INR");
 }
+
+export { formatMoney };

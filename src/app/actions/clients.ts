@@ -20,6 +20,7 @@ export async function createClientAction(formData: FormData) {
       address: (formData.get("address") as string) || null,
       business_category: (formData.get("business_category") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      currency_code: (formData.get("currency_code") as string) || "INR",
     })
     .select("id")
     .single();
@@ -44,6 +45,7 @@ export async function updateClientAction(id: string, formData: FormData) {
       address: (formData.get("address") as string) || null,
       business_category: (formData.get("business_category") as string) || null,
       notes: (formData.get("notes") as string) || null,
+      currency_code: (formData.get("currency_code") as string) || "INR",
     })
     .eq("id", id);
 

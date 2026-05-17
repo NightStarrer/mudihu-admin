@@ -15,12 +15,15 @@ import {
 } from "@/components/ui/table";
 import { Plus } from "lucide-react";
 import { getJoinedCompanyName } from "@/lib/supabase/relations";
+import { formatPdfDateShort } from "@/lib/pdf/dates";
 
 export default async function ProposalsPage() {
   const supabase = await createClient();
   const { data: proposals } = await supabase
     .from("proposals")
-    .select("id, title, status, created_at, client:clients(company_name)")
+    .select(
+      "id, title, status, created_at, invoice_date, invoice_number, client:clients(company_name)"
+    )
     .order("created_at", { ascending: false });
 
   return (
@@ -47,13 +50,14 @@ export default async function ProposalsPage() {
               <TableHead>Title</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="hidden md:table-cell">Invoice</TableHead>
               <TableHead className="text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {!proposals?.length ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No proposals yet
                 </TableCell>
               </TableRow>
@@ -68,6 +72,18 @@ export default async function ProposalsPage() {
                     <Badge variant="secondary" className="capitalize">
                       {p.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                    {p.invoice_number ? (
+                      <span className="block font-medium text-foreground">
+                        {p.invoice_number}
+                      </span>
+                    ) : null}
+                    {p.invoice_date ? (
+                      <span>{formatPdfDateShort(p.invoice_date)}</span>
+                    ) : (
+                      !p.invoice_number && "—"
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Link

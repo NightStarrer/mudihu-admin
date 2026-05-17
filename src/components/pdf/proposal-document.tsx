@@ -1,11 +1,7 @@
-import {
-  Document,
-  Page,
-  Text,
-  View,
-  Image,
-} from "@react-pdf/renderer";
-import { createPdfStyles, formatPdfINR } from "@/lib/pdf/theme";
+import { Document, Page, Text, View, Image } from "@react-pdf/renderer";
+import { createPdfStyles } from "@/lib/pdf/theme";
+import { getDocumentDate, formatPdfDateShort } from "@/lib/pdf/dates";
+import { formatPdfMoney } from "@/lib/money/currency";
 import type { BrandingTokens, ProposalWithRelations } from "@/types/database";
 import { calculateProposalTotals } from "@/lib/proposals/calculate-totals";
 import {
@@ -46,6 +42,23 @@ function BankDetailsBlock({
   );
 }
 
+function MetaBlock({
+  label,
+  value,
+  styles,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof createPdfStyles>;
+}) {
+  return (
+    <View>
+      <Text style={styles.metaLabel}>{label}</Text>
+      <Text style={styles.metaValue}>{value}</Text>
+    </View>
+  );
+}
+
 export function ProposalDocument({
   proposal,
   branding,
@@ -57,6 +70,8 @@ export function ProposalDocument({
 }) {
   const styles = createPdfStyles(branding);
   const labels = PDF_DOCUMENT_LABELS[documentType];
+  const currency = proposal.client.currency_code ?? "INR";
+  const fmt = (n: number) => formatPdfMoney(n, currency);
   const phases = filterPhasesForDocument(proposal.phases, documentType);
   const totals = calculateProposalTotals(
     proposal.phases,
@@ -67,14 +82,22 @@ export function ProposalDocument({
     (proposal.payment_terms as { text?: string })?.text ?? "";
   const showBank =
     documentType === "invoice" || documentType === "cost_sheet";
+  const documentDate = getDocumentDate(proposal, documentType);
+  const generatedAt = new Date().toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header} fixed>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <View style={styles.headerLeft}>
             {branding.logoUrl ? (
-              <Image src={branding.logoUrl} style={{ width: 40, height: 40 }} />
+              <Image src={branding.logoUrl} style={{ width: 44, height: 44 }} />
             ) : (
               <View style={styles.logoBox}>
                 <Text style={styles.logoText}>MH</Text>
@@ -85,9 +108,17 @@ export function ProposalDocument({
               <Text style={styles.docType}>{labels.title}</Text>
             </View>
           </View>
-          <Text style={styles.docType}>
-            {new Date().toLocaleDateString("en-IN")}
-          </Text>
+          <View style={styles.headerRight}>
+            <MetaBlock label="Document date" value={documentDate} styles={styles} />
+            {documentType === "invoice" && proposal.invoice_number ? (
+              <MetaBlock
+                label="Invoice no."
+                value={proposal.invoice_number}
+                styles={styles}
+              />
+            ) : null}
+            <MetaBlock label="Currency" value={currency} styles={styles} />
+          </View>
         </View>
 
         <Text style={styles.title}>{proposal.title}</Text>
@@ -95,13 +126,31 @@ export function ProposalDocument({
           <Text style={styles.subtitle}>{proposal.description}</Text>
         ) : null}
 
+        {(documentType === "invoice" && proposal.due_date) ||
+        documentType !== "invoice" ? (
+          <View style={styles.datesRow}>
+            {documentType === "invoice" && proposal.due_date ? (
+              <View style={styles.dateCell}>
+                <Text style={styles.metaLabel}>Due date</Text>
+                <Text style={styles.metaValue}>
+                  {formatPdfDateShort(proposal.due_date)}
+                </Text>
+              </View>
+            ) : null}
+            {proposal.proposal_date && documentType === "proposal" ? (
+              <View style={styles.dateCell}>
+                <Text style={styles.metaLabel}>Valid from</Text>
+                <Text style={styles.metaValue}>
+                  {formatPdfDateShort(proposal.proposal_date)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={styles.clientBlock}>
-          <Text style={{ fontSize: 9, fontWeight: "bold", marginBottom: 4 }}>
-            Prepared for
-          </Text>
-          <Text style={{ fontSize: 11, fontWeight: "bold" }}>
-            {proposal.client.company_name}
-          </Text>
+          <Text style={styles.clientLabel}>Prepared for</Text>
+          <Text style={styles.clientName}>{proposal.client.company_name}</Text>
           {proposal.client.contact_person ? (
             <Text style={styles.bodyText}>{proposal.client.contact_person}</Text>
           ) : null}
@@ -126,14 +175,14 @@ export function ProposalDocument({
               <Text style={styles.phaseTitle}>{phase.name}</Text>
               {phase.groups.map((group) => (
                 <View key={group.id} style={styles.groupRow}>
-                  <View style={{ flex: 1, paddingRight: 12 }}>
+                  <View style={{ flex: 1, paddingRight: 16 }}>
                     <Text style={styles.groupTitle}>{group.title}</Text>
                     {group.description ? (
                       <Text style={styles.groupDesc}>{group.description}</Text>
                     ) : null}
                   </View>
                   <Text style={styles.amount}>
-                    {formatPdfINR(Number(group.amount))}
+                    {fmt(Number(group.amount))}
                   </Text>
                 </View>
               ))}
@@ -145,20 +194,20 @@ export function ProposalDocument({
           {totals.phaseTotals.map((pt) => (
             <View key={pt.phaseId} style={styles.totalRow}>
               <Text>{pt.phaseName}</Text>
-              <Text>{formatPdfINR(pt.subtotal)}</Text>
+              <Text>{fmt(pt.subtotal)}</Text>
             </View>
           ))}
           <View style={[styles.totalRow, { marginTop: 8 }]}>
             <Text>Subtotal</Text>
-            <Text>{formatPdfINR(totals.subtotal)}</Text>
+            <Text>{fmt(totals.subtotal)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text>GST ({proposal.gst_rate}%)</Text>
-            <Text>{formatPdfINR(totals.gstAmount)}</Text>
+            <Text>{fmt(totals.gstAmount)}</Text>
           </View>
-          <View style={[styles.totalRow, { marginTop: 6 }]}>
+          <View style={[styles.totalRow, { marginTop: 8 }]}>
             <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
-            <Text style={styles.grandTotal}>{formatPdfINR(totals.total)}</Text>
+            <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>
           </View>
         </View>
 
@@ -189,6 +238,11 @@ export function ProposalDocument({
 
         <Text style={styles.footer} fixed>
           {branding.footerText}
+          {" · "}
+          Generated {generatedAt}
+          {proposal.last_invoice_exported_at && documentType === "invoice"
+            ? ` · Last exported ${formatPdfDateShort(proposal.last_invoice_exported_at.slice(0, 10))}`
+            : ""}
         </Text>
       </Page>
     </Document>

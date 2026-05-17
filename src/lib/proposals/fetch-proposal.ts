@@ -52,9 +52,14 @@ export async function fetchProposalWithRelations(
       })),
   }));
 
+  const client = proposal.client as ProposalWithRelations["client"];
+
   return {
     ...(proposal as Omit<ProposalWithRelations, "phases" | "client">),
-    client: proposal.client as ProposalWithRelations["client"],
+    client: {
+      ...client,
+      currency_code: client.currency_code ?? "INR",
+    },
     phases: phasesWithGroups,
   };
 }

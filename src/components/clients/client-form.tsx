@@ -11,6 +11,7 @@ import {
   updateClientAction,
 } from "@/app/actions/clients";
 import type { Client } from "@/types/database";
+import { CurrencySelect } from "@/components/clients/currency-select";
 import { toast } from "sonner";
 
 export function ClientForm({ client }: { client?: Client }) {
@@ -85,6 +86,7 @@ export function ClientForm({ client }: { client?: Client }) {
             defaultValue={client?.phone ?? ""}
           />
         </div>
+        <CurrencySelect defaultValue={client?.currency_code ?? "INR"} />
         <div className="space-y-2">
           <Label htmlFor="gst_number">GST number</Label>
           <Input

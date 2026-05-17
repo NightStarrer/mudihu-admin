@@ -30,8 +30,10 @@ import {
 } from "@/app/actions/proposals";
 import {
   calculateProposalTotals,
-  formatINR,
+  formatMoney,
 } from "@/lib/proposals/calculate-totals";
+import { DocumentDatesCard } from "@/components/proposals/document-dates-card";
+import { currencySymbolForUi } from "@/lib/money/currency";
 import type { PdfDocumentType } from "@/lib/proposals/document-types";
 import { DocumentInclusionToggles } from "@/components/proposals/document-inclusion-toggles";
 import type {
@@ -56,6 +58,8 @@ export function ProposalBuilder({
     Awaited<ReturnType<typeof getProposalSuggestions>>["suggestions"]
   >([]);
 
+  const currency = proposal.client.currency_code ?? "INR";
+  const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
   const proposalTotals = calculateProposalTotals(
     proposal.phases,
@@ -191,9 +195,14 @@ export function ProposalBuilder({
             </div>
             <p className="text-sm text-muted-foreground">
               Client: <strong>{proposal.client.company_name}</strong>
+              {" · "}
+              Currency: <strong>{currency}</strong> (
+              {currencySymbolForUi(currency)})
             </p>
           </CardContent>
         </Card>
+
+        <DocumentDatesCard proposal={proposal} />
 
         {proposal.phases.map((phase) => (
           <Card key={phase.id} className="border-border/60">
@@ -455,13 +464,13 @@ export function ProposalBuilder({
             {proposalTotals.phaseTotals.map((pt) => (
               <div key={pt.phaseId} className="flex justify-between">
                 <span className="text-muted-foreground">{pt.phaseName}</span>
-                <span>{formatINR(pt.subtotal)}</span>
+                <span>{fmt(pt.subtotal)}</span>
               </div>
             ))}
             <Separator />
             <div className="flex justify-between font-medium">
               <span>Total</span>
-              <span>{formatINR(proposalTotals.total)}</span>
+              <span>{fmt(proposalTotals.total)}</span>
             </div>
 
             <Separator />
@@ -471,15 +480,15 @@ export function ProposalBuilder({
             </p>
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>{formatINR(invoiceTotals.subtotal)}</span>
+              <span>{fmt(invoiceTotals.subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span>GST ({proposal.gst_rate}%)</span>
-              <span>{formatINR(invoiceTotals.gstAmount)}</span>
+              <span>{fmt(invoiceTotals.gstAmount)}</span>
             </div>
             <div className="flex justify-between text-base font-semibold">
               <span>Amount due</span>
-              <span className="text-primary">{formatINR(invoiceTotals.total)}</span>
+              <span className="text-primary">{fmt(invoiceTotals.total)}</span>
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
@@ -513,7 +522,7 @@ export function ProposalBuilder({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Cost sheet total: {formatINR(costSheetTotals.total)}
+              Cost sheet total: {fmt(costSheetTotals.total)}
             </p>
           </CardContent>
         </Card>
@@ -536,7 +545,7 @@ export function ProposalBuilder({
               <div key={i} className="rounded border p-2 text-xs">
                 <p className="font-medium">{s.title}</p>
                 <p className="text-muted-foreground">{s.description}</p>
-                <p className="mt-1">{formatINR(s.suggestedAmount)}</p>
+                <p className="mt-1">{fmt(s.suggestedAmount)}</p>
               </div>
             ))}
           </CardContent>

@@ -36,6 +36,12 @@ export async function createProposalAction(formData: FormData) {
   return proposal.id;
 }
 
+function parseOptionalDate(value: string | null | undefined) {
+  if (value === undefined) return undefined;
+  if (!value || value.trim() === "") return null;
+  return value;
+}
+
 export async function updateProposalMetaAction(
   id: string,
   data: {
@@ -46,6 +52,11 @@ export async function updateProposalMetaAction(
     complimentary_services?: string | null;
     custom_notes?: string | null;
     payment_terms?: string;
+    proposal_date?: string | null;
+    cost_sheet_date?: string | null;
+    invoice_date?: string | null;
+    due_date?: string | null;
+    invoice_number?: string | null;
   }
 ) {
   await requireProfile();
@@ -61,10 +72,51 @@ export async function updateProposalMetaAction(
   if (data.custom_notes !== undefined) update.custom_notes = data.custom_notes;
   if (data.payment_terms !== undefined)
     update.payment_terms = { text: data.payment_terms };
+  if (data.proposal_date !== undefined)
+    update.proposal_date = parseOptionalDate(data.proposal_date);
+  if (data.cost_sheet_date !== undefined)
+    update.cost_sheet_date = parseOptionalDate(data.cost_sheet_date);
+  if (data.invoice_date !== undefined)
+    update.invoice_date = parseOptionalDate(data.invoice_date);
+  if (data.due_date !== undefined)
+    update.due_date = parseOptionalDate(data.due_date);
+  if (data.invoice_number !== undefined)
+    update.invoice_number = data.invoice_number?.trim() || null;
 
   const { error } = await supabase.from("proposals").update(update).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath(`/dashboard/proposals/${id}`);
+  revalidatePath("/dashboard/proposals");
+}
+
+export async function stampInvoiceExportAction(proposalId: string) {
+  await requireProfile();
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const { data: existing } = await supabase
+    .from("proposals")
+    .select("invoice_number, invoice_date")
+    .eq("id", proposalId)
+    .single();
+
+  const updates: Record<string, unknown> = {
+    last_invoice_exported_at: now,
+  };
+
+  if (!existing?.invoice_date) {
+    updates.invoice_date = now.slice(0, 10);
+  }
+
+  if (!existing?.invoice_number) {
+    const y = new Date().getFullYear();
+    const m = String(new Date().getMonth() + 1).padStart(2, "0");
+    updates.invoice_number = `INV-${y}${m}-${proposalId.slice(0, 6).toUpperCase()}`;
+  }
+
+  await supabase.from("proposals").update(updates).eq("id", proposalId);
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+  revalidatePath("/dashboard/proposals");
 }
 
 export async function addPhaseAction(proposalId: string, name: string) {

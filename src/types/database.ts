@@ -46,6 +46,7 @@ export interface Client {
   business_category: string | null;
   industry_tags: string[] | null;
   notes: string | null;
+  currency_code: string;
   created_at: string;
   updated_at: string;
 }
@@ -71,6 +72,12 @@ export interface Proposal {
   timeline: Record<string, unknown> | null;
   complimentary_services: string | null;
   custom_notes: string | null;
+  proposal_date: string | null;
+  cost_sheet_date: string | null;
+  invoice_date: string | null;
+  due_date: string | null;
+  invoice_number: string | null;
+  last_invoice_exported_at: string | null;
   created_at: string;
   updated_at: string;
 }

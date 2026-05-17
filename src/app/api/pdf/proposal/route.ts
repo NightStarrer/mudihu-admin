@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid documentType" }, { status: 400 });
     }
 
-    const proposal = await fetchProposalWithRelations(proposalId);
+    let proposal = await fetchProposalWithRelations(proposalId);
     if (!proposal) {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
     }
@@ -69,6 +69,23 @@ export async function POST(request: Request) {
       branding as BrandingSettings | null,
       agency as Agency | null
     );
+
+    if (documentType === "invoice") {
+      const now = new Date().toISOString();
+      const stamp: Record<string, unknown> = {
+        last_invoice_exported_at: now,
+      };
+      if (!proposal.invoice_date) {
+        stamp.invoice_date = now.slice(0, 10);
+      }
+      if (!proposal.invoice_number) {
+        const y = new Date().getFullYear();
+        const m = String(new Date().getMonth() + 1).padStart(2, "0");
+        stamp.invoice_number = `INV-${y}${m}-${proposalId.slice(0, 6).toUpperCase()}`;
+      }
+      await supabase.from("proposals").update(stamp).eq("id", proposalId);
+      proposal = (await fetchProposalWithRelations(proposalId)) ?? proposal;
+    }
 
     const included = filterPhasesForDocument(proposal.phases, documentType);
     if (!included.length) {
