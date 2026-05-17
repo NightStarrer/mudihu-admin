@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageActions } from "@/components/layout/page-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,7 @@ export default async function DashboardPage() {
         title="Overview"
         description="MuDiHu agency operations at a glance"
         action={
-          <div className="flex gap-2">
+          <PageActions>
             <Link
               href="/dashboard/clients/new"
               className={cn(buttonVariants({ variant: "outline" }))}
@@ -94,7 +95,7 @@ export default async function DashboardPage() {
               <Plus className="mr-2 h-4 w-4" />
               New proposal
             </Link>
-          </div>
+          </PageActions>
         }
       />
 

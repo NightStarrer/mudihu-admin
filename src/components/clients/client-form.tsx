@@ -112,7 +112,7 @@ export function ClientForm({ client }: { client?: Client }) {
           />
         </div>
       </div>
-      <Button type="submit" disabled={loading} className="bg-primary">
+      <Button type="submit" disabled={loading} className="w-full bg-primary sm:w-auto">
         {loading ? "Saving…" : client ? "Update client" : "Create client"}
       </Button>
     </form>

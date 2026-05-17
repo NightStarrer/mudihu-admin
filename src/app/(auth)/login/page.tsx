@@ -116,6 +116,7 @@ export default function LoginPage() {
               </motion.div>
               <Button
                 type="submit"
+                size="lg"
                 className="w-full bg-[#7B1E3A] hover:bg-[#6a1a32]"
                 disabled={loading}
               >

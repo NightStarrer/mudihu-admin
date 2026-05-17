@@ -128,3 +128,9 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}

@@ -34,7 +34,7 @@ export function ClientsTable({
 
   return (
     <div className="space-y-4">
-      <form onSubmit={handleSearch} className="max-w-sm">
+      <form onSubmit={handleSearch} className="w-full max-w-sm">
         <Input
           placeholder="Search clients…"
           value={query}

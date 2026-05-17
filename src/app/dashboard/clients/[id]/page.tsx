@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageActions } from "@/components/layout/page-actions";
 import { ClientForm } from "@/components/clients/client-form";
 import { ClientNotes } from "@/components/clients/client-notes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,17 +47,19 @@ export default async function ClientDetailPage({
         title={(client as Client).company_name}
         description="Client profile and history"
         action={
-          <Link
-            href={`/dashboard/proposals/new?client=${id}`}
-            className={cn(buttonVariants({ variant: "outline" }))}
-          >
-            New proposal
-          </Link>
+          <PageActions>
+            <Link
+              href={`/dashboard/proposals/new?client=${id}`}
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              New proposal
+            </Link>
+          </PageActions>
         }
       />
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
+      <Tabs defaultValue="overview" className="space-y-4 sm:space-y-6">
+        <TabsList className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="proposals">Proposals</TabsTrigger>
@@ -87,7 +90,7 @@ export default async function ClientDetailPage({
                   <Link
                     key={p.id}
                     href={`/dashboard/proposals/${p.id}`}
-                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50"
+                    className="flex flex-col gap-2 rounded-lg border p-3 hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="font-medium">{p.title}</span>
                     <Badge variant="secondary" className="capitalize">

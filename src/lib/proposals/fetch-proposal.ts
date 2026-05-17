@@ -34,6 +34,9 @@ export async function fetchProposalWithRelations(
 
   const phasesWithGroups = (phases ?? []).map((phase) => ({
     ...phase,
+    include_in_proposal: (phase.include_in_proposal as boolean) ?? true,
+    include_in_invoice: (phase.include_in_invoice as boolean) ?? true,
+    include_in_cost_sheet: (phase.include_in_cost_sheet as boolean) ?? true,
     groups: groups
       .filter((g) => g.phase_id === phase.id)
       .map((g) => ({
@@ -43,6 +46,9 @@ export async function fetchProposalWithRelations(
         description: g.description as string | null,
         amount: Number(g.amount),
         sort_order: g.sort_order as number,
+        include_in_proposal: (g.include_in_proposal as boolean) ?? true,
+        include_in_invoice: (g.include_in_invoice as boolean) ?? true,
+        include_in_cost_sheet: (g.include_in_cost_sheet as boolean) ?? true,
       })),
   }));
 

@@ -24,6 +24,13 @@ export interface BrandingSettings {
   background_color: string;
   font_family: string;
   footer_text: string | null;
+  bank_account_name: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_ifsc: string | null;
+  bank_branch: string | null;
+  bank_upi_id: string | null;
+  show_bank_on_documents: boolean;
   updated_at: string;
 }
 
@@ -68,14 +75,20 @@ export interface Proposal {
   updated_at: string;
 }
 
-export interface ProposalPhase {
+export interface DocumentInclusion {
+  include_in_proposal: boolean;
+  include_in_invoice: boolean;
+  include_in_cost_sheet: boolean;
+}
+
+export interface ProposalPhase extends DocumentInclusion {
   id: string;
   proposal_id: string;
   name: string;
   sort_order: number;
 }
 
-export interface ProposalGroup {
+export interface ProposalGroup extends DocumentInclusion {
   id: string;
   phase_id: string;
   title: string;
@@ -107,6 +120,16 @@ export interface ProposalWithRelations extends Proposal {
   phases: (ProposalPhase & { groups: ProposalGroup[] })[];
 }
 
+export interface BankDetails {
+  accountName: string | null;
+  bankName: string | null;
+  accountNumber: string | null;
+  ifsc: string | null;
+  branch: string | null;
+  upiId: string | null;
+  showOnDocuments: boolean;
+}
+
 export interface BrandingTokens {
   primaryColor: string;
   secondaryColor: string;
@@ -115,4 +138,5 @@ export interface BrandingTokens {
   logoUrl: string | null;
   footerText: string;
   agencyName: string;
+  bank: BankDetails | null;
 }

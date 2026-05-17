@@ -5,6 +5,12 @@ import { fetchProposalWithRelations } from "@/lib/proposals/fetch-proposal";
 import { toBrandingTokens } from "@/lib/branding/tokens";
 import { renderProposalPdf } from "@/lib/pdf/render";
 import type { Agency, BrandingSettings } from "@/types/database";
+import {
+  filterPhasesForDocument,
+  type PdfDocumentType,
+} from "@/lib/proposals/document-types";
+
+const VALID_TYPES: PdfDocumentType[] = ["proposal", "invoice", "cost_sheet"];
 
 export const runtime = "nodejs";
 
@@ -19,9 +25,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { proposalId } = await request.json();
+    const body = await request.json();
+    const proposalId = body.proposalId as string | undefined;
+    const documentType = (body.documentType ?? "proposal") as PdfDocumentType;
+
     if (!proposalId) {
       return NextResponse.json({ error: "proposalId required" }, { status: 400 });
+    }
+
+    if (!VALID_TYPES.includes(documentType)) {
+      return NextResponse.json({ error: "Invalid documentType" }, { status: 400 });
     }
 
     const proposal = await fetchProposalWithRelations(proposalId);
@@ -57,8 +70,19 @@ export async function POST(request: Request) {
       agency as Agency | null
     );
 
-    const pdfBuffer = await renderProposalPdf(proposal, tokens);
-    const fileName = `proposals/${proposalId}/${Date.now()}.pdf`;
+    const included = filterPhasesForDocument(proposal.phases, documentType);
+    if (!included.length) {
+      return NextResponse.json(
+        {
+          error:
+            "No phases or line items are included for this document type. Check inclusion toggles on the proposal.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const pdfBuffer = await renderProposalPdf(proposal, tokens, documentType);
+    const fileName = `proposals/${proposalId}/${documentType}-${Date.now()}.pdf`;
 
     let downloadUrl: string;
 
@@ -81,7 +105,7 @@ export async function POST(request: Request) {
         await admin.from("pdf_documents").insert({
           agency_id: profile.agency_id,
           proposal_id: proposalId,
-          document_type: "proposal",
+          document_type: documentType,
           storage_path: fileName,
         });
       } else {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageActions } from "@/components/layout/page-actions";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -28,13 +29,15 @@ export default async function ProposalsPage() {
         title="Proposals"
         description="Build and export professional client proposals"
         action={
-          <Link
-            href="/dashboard/proposals/new"
-            className={cn(buttonVariants(), "bg-primary")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New proposal
-          </Link>
+          <PageActions>
+            <Link
+              href="/dashboard/proposals/new"
+              className={cn(buttonVariants(), "bg-primary")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              New proposal
+            </Link>
+          </PageActions>
         }
       />
       <div className="rounded-lg border border-border/60 bg-card">

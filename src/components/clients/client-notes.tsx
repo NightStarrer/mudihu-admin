@@ -49,7 +49,7 @@ export function ClientNotes({
             placeholder="Project update, payment note…"
             rows={3}
           />
-          <Button onClick={handleAdd} disabled={loading} className="bg-primary">
+          <Button onClick={handleAdd} disabled={loading} className="w-full bg-primary sm:w-auto">
             {loading ? "Saving…" : "Add note"}
           </Button>
         </CardContent>

@@ -1,12 +1,21 @@
 import type { ProposalGroup, ProposalPhase } from "@/types/database";
+import {
+  filterPhasesForDocument,
+  type PdfDocumentType,
+} from "@/lib/proposals/document-types";
 
 export type PhaseWithGroups = ProposalPhase & { groups: ProposalGroup[] };
 
 export function calculateProposalTotals(
   phases: PhaseWithGroups[],
-  gstRate: number
+  gstRate: number,
+  documentType?: PdfDocumentType
 ) {
-  const phaseTotals = phases.map((p) => ({
+  const billablePhases = documentType
+    ? filterPhasesForDocument(phases, documentType)
+    : phases;
+
+  const phaseTotals = billablePhases.map((p) => ({
     phaseId: p.id,
     phaseName: p.name,
     subtotal: p.groups.reduce((s, g) => s + Number(g.amount), 0),

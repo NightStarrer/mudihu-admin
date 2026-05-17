@@ -11,6 +11,13 @@ export async function updateBrandingAction(data: {
   font_family: string;
   footer_text: string;
   logo_url?: string | null;
+  bank_account_name?: string | null;
+  bank_name?: string | null;
+  bank_account_number?: string | null;
+  bank_ifsc?: string | null;
+  bank_branch?: string | null;
+  bank_upi_id?: string | null;
+  show_bank_on_documents?: boolean;
 }) {
   const { profile } = await requireAdmin();
   const supabase = await createClient();

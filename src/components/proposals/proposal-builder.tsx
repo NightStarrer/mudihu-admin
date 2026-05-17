@@ -23,13 +23,17 @@ import {
   deletePhaseAction,
   insertFromLibraryAction,
   updateGroupAction,
+  updateGroupInclusionAction,
   updatePhaseAction,
+  updatePhaseInclusionAction,
   updateProposalMetaAction,
 } from "@/app/actions/proposals";
 import {
   calculateProposalTotals,
   formatINR,
 } from "@/lib/proposals/calculate-totals";
+import type { PdfDocumentType } from "@/lib/proposals/document-types";
+import { DocumentInclusionToggles } from "@/components/proposals/document-inclusion-toggles";
 import type {
   ProposalSectionLibrary,
   ProposalWithRelations,
@@ -47,27 +51,39 @@ export function ProposalBuilder({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<PdfDocumentType | null>(null);
   const [suggestions, setSuggestions] = useState<
     Awaited<ReturnType<typeof getProposalSuggestions>>["suggestions"]
   >([]);
 
-  const totals = calculateProposalTotals(
+  const gstRate = Number(proposal.gst_rate);
+  const proposalTotals = calculateProposalTotals(
     proposal.phases,
-    Number(proposal.gst_rate)
+    gstRate,
+    "proposal"
+  );
+  const invoiceTotals = calculateProposalTotals(
+    proposal.phases,
+    gstRate,
+    "invoice"
+  );
+  const costSheetTotals = calculateProposalTotals(
+    proposal.phases,
+    gstRate,
+    "cost_sheet"
   );
 
-  async function handleExportPdf() {
+  async function handleExportPdf(documentType: PdfDocumentType) {
     if (!proposal.phases.some((p) => p.groups.length > 0)) {
       toast.error("Add at least one development area before exporting");
       return;
     }
-    setExporting(true);
+    setExporting(documentType);
     try {
       const res = await fetch("/api/pdf/proposal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalId: proposal.id }),
+        body: JSON.stringify({ proposalId: proposal.id, documentType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Export failed");
@@ -76,7 +92,7 @@ export function ProposalBuilder({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Export failed");
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -181,32 +197,56 @@ export function ProposalBuilder({
 
         {proposal.phases.map((phase) => (
           <Card key={phase.id} className="border-border/60">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <Input
-                defaultValue={phase.name}
-                className="max-w-xs font-semibold"
-                onBlur={(e) =>
-                  startTransition(async () => {
-                    await updatePhaseAction(phase.id, proposal.id, {
-                      name: e.target.value,
-                    });
-                    router.refresh();
-                  })
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={pending}
-                onClick={() =>
-                  startTransition(async () => {
-                    await deletePhaseAction(phase.id, proposal.id);
-                    router.refresh();
-                  })
-                }
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
+            <CardHeader className="space-y-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <Input
+                  defaultValue={phase.name}
+                  className="w-full font-semibold sm:max-w-xs"
+                  onBlur={(e) =>
+                    startTransition(async () => {
+                      await updatePhaseAction(phase.id, proposal.id, {
+                        name: e.target.value,
+                      });
+                      router.refresh();
+                    })
+                  }
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await deletePhaseAction(phase.id, proposal.id);
+                      router.refresh();
+                    })
+                  }
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Include phase in
+                </p>
+                <DocumentInclusionToggles
+                  compact
+                  disabled={pending}
+                  values={{
+                    include_in_proposal: phase.include_in_proposal,
+                    include_in_invoice: phase.include_in_invoice,
+                    include_in_cost_sheet: phase.include_in_cost_sheet,
+                  }}
+                  onChange={(key, checked) =>
+                    startTransition(async () => {
+                      await updatePhaseInclusionAction(phase.id, proposal.id, {
+                        [key]: checked,
+                      });
+                      router.refresh();
+                    })
+                  }
+                />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {phase.groups.map((group) => (
@@ -240,12 +280,12 @@ export function ProposalBuilder({
                       })
                     }
                   />
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Label className="text-xs">Amount (₹)</Label>
                       <Input
                         type="number"
-                        className="w-32"
+                        className="w-full min-w-0 sm:w-32"
                         defaultValue={group.amount}
                         min={0}
                         onBlur={(e) =>
@@ -271,6 +311,30 @@ export function ProposalBuilder({
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
+                  <div className="mt-3 space-y-1.5 border-t border-border/40 pt-3">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Include line item in
+                    </p>
+                    <DocumentInclusionToggles
+                      compact
+                      disabled={pending}
+                      values={{
+                        include_in_proposal: group.include_in_proposal,
+                        include_in_invoice: group.include_in_invoice,
+                        include_in_cost_sheet: group.include_in_cost_sheet,
+                      }}
+                      onChange={(key, checked) =>
+                        startTransition(async () => {
+                          await updateGroupInclusionAction(
+                            group.id,
+                            proposal.id,
+                            { [key]: checked }
+                          );
+                          router.refresh();
+                        })
+                      }
+                    />
+                  </div>
                 </div>
               ))}
 
@@ -290,7 +354,7 @@ export function ProposalBuilder({
                     });
                   }}
                 >
-                  <SelectTrigger className="w-[220px]">
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Insert from library" />
                   </SelectTrigger>
                   <SelectContent>
@@ -380,38 +444,77 @@ export function ProposalBuilder({
       </div>
 
       <div className="space-y-4">
-        <Card className="sticky top-6 border-primary/20 bg-card shadow-md">
+        <Card className="border-primary/20 bg-card shadow-md lg:sticky lg:top-6">
           <CardHeader>
             <CardTitle className="text-lg">Summary</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {totals.phaseTotals.map((pt) => (
+            <p className="text-xs font-medium text-muted-foreground">
+              Proposal total
+            </p>
+            {proposalTotals.phaseTotals.map((pt) => (
               <div key={pt.phaseId} className="flex justify-between">
                 <span className="text-muted-foreground">{pt.phaseName}</span>
                 <span>{formatINR(pt.subtotal)}</span>
               </div>
             ))}
             <Separator />
+            <div className="flex justify-between font-medium">
+              <span>Total</span>
+              <span>{formatINR(proposalTotals.total)}</span>
+            </div>
+
+            <Separator />
+
+            <p className="text-xs font-medium text-muted-foreground">
+              Invoice (included items)
+            </p>
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>{formatINR(totals.subtotal)}</span>
+              <span>{formatINR(invoiceTotals.subtotal)}</span>
             </div>
             <div className="flex justify-between">
               <span>GST ({proposal.gst_rate}%)</span>
-              <span>{formatINR(totals.gstAmount)}</span>
+              <span>{formatINR(invoiceTotals.gstAmount)}</span>
             </div>
             <div className="flex justify-between text-base font-semibold">
-              <span>Total</span>
-              <span className="text-primary">{formatINR(totals.total)}</span>
+              <span>Amount due</span>
+              <span className="text-primary">{formatINR(invoiceTotals.total)}</span>
             </div>
-            <Button
-              className="mt-4 w-full bg-primary"
-              onClick={handleExportPdf}
-              disabled={exporting}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {exporting ? "Generating…" : "Export PDF"}
-            </Button>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                className="w-full bg-primary"
+                onClick={() => handleExportPdf("proposal")}
+                disabled={exporting !== null}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exporting === "proposal" ? "Generating…" : "Export proposal"}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleExportPdf("invoice")}
+                disabled={exporting !== null}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exporting === "invoice" ? "Generating…" : "Export invoice"}
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleExportPdf("cost_sheet")}
+                disabled={exporting !== null}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                {exporting === "cost_sheet"
+                  ? "Generating…"
+                  : "Export cost sheet"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Cost sheet total: {formatINR(costSheetTotals.total)}
+            </p>
           </CardContent>
         </Card>
 

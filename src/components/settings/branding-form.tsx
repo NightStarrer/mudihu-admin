@@ -33,6 +33,13 @@ export function BrandingForm({
         font_family: fd.get("font_family") as string,
         footer_text: fd.get("footer_text") as string,
         logo_url: branding?.logo_url ?? null,
+        bank_account_name: (fd.get("bank_account_name") as string) || null,
+        bank_name: (fd.get("bank_name") as string) || null,
+        bank_account_number: (fd.get("bank_account_number") as string) || null,
+        bank_ifsc: (fd.get("bank_ifsc") as string) || null,
+        bank_branch: (fd.get("bank_branch") as string) || null,
+        bank_upi_id: (fd.get("bank_upi_id") as string) || null,
+        show_bank_on_documents: fd.get("show_bank_on_documents") === "on",
       });
       toast.success("Branding updated");
       router.refresh();
@@ -137,7 +144,80 @@ export function BrandingForm({
             rows={2}
           />
         </div>
-        <Button type="submit" disabled={loading} className="bg-primary">
+
+        <div className="border-t border-border/60 pt-6">
+          <h3 className="text-sm font-semibold">Bank account (invoices & cost sheets)</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Shown on invoice and cost sheet PDFs when filled in. Proposals use your
+            logo from above; upload a logo to replace the MH placeholder.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="bank_account_name">Account holder name</Label>
+              <Input
+                id="bank_account_name"
+                name="bank_account_name"
+                defaultValue={branding?.bank_account_name ?? ""}
+                placeholder="MuDiHu — Muttugodu Digital Hub"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_name">Bank name</Label>
+              <Input
+                id="bank_name"
+                name="bank_name"
+                defaultValue={branding?.bank_name ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_branch">Branch</Label>
+              <Input
+                id="bank_branch"
+                name="bank_branch"
+                defaultValue={branding?.bank_branch ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_account_number">Account number</Label>
+              <Input
+                id="bank_account_number"
+                name="bank_account_number"
+                defaultValue={branding?.bank_account_number ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bank_ifsc">IFSC code</Label>
+              <Input
+                id="bank_ifsc"
+                name="bank_ifsc"
+                defaultValue={branding?.bank_ifsc ?? ""}
+                placeholder="SBIN0001234"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="bank_upi_id">UPI ID (optional)</Label>
+              <Input
+                id="bank_upi_id"
+                name="bank_upi_id"
+                defaultValue={branding?.bank_upi_id ?? ""}
+                placeholder="name@upi"
+              />
+            </div>
+            <label className="flex items-center gap-2 sm:col-span-2">
+              <input
+                type="checkbox"
+                name="show_bank_on_documents"
+                defaultChecked={branding?.show_bank_on_documents ?? true}
+                className="size-4 accent-primary"
+              />
+              <span className="text-sm text-muted-foreground">
+                Include payment details on invoice and cost sheet PDFs
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <Button type="submit" disabled={loading} className="w-full bg-primary sm:w-auto">
           {loading ? "Saving…" : "Save branding"}
         </Button>
       </form>

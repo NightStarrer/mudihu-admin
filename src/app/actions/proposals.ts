@@ -90,6 +90,25 @@ export async function addPhaseAction(proposalId: string, name: string) {
   revalidatePath(`/dashboard/proposals/${proposalId}`);
 }
 
+export async function updatePhaseInclusionAction(
+  phaseId: string,
+  proposalId: string,
+  data: {
+    include_in_proposal?: boolean;
+    include_in_invoice?: boolean;
+    include_in_cost_sheet?: boolean;
+  }
+) {
+  await requireProfile();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("proposal_phases")
+    .update(data)
+    .eq("id", phaseId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+}
+
 export async function updatePhaseAction(
   phaseId: string,
   proposalId: string,
@@ -141,6 +160,25 @@ export async function addGroupAction(
     sort_order: nextOrder,
   });
 
+  if (error) throw new Error(error.message);
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+}
+
+export async function updateGroupInclusionAction(
+  groupId: string,
+  proposalId: string,
+  data: {
+    include_in_proposal?: boolean;
+    include_in_invoice?: boolean;
+    include_in_cost_sheet?: boolean;
+  }
+) {
+  await requireProfile();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("proposal_groups")
+    .update(data)
+    .eq("id", groupId);
   if (error) throw new Error(error.message);
   revalidatePath(`/dashboard/proposals/${proposalId}`);
 }

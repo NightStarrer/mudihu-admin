@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageActions } from "@/components/layout/page-actions";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ClientsTable } from "@/components/clients/clients-table";
@@ -33,13 +34,15 @@ export default async function ClientsPage({
         title="Clients"
         description="Manage client relationships and project history"
         action={
-          <Link
-            href="/dashboard/clients/new"
-            className={cn(buttonVariants(), "bg-primary")}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add client
-          </Link>
+          <PageActions>
+            <Link
+              href="/dashboard/clients/new"
+              className={cn(buttonVariants(), "bg-primary")}
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add client
+            </Link>
+          </PageActions>
         }
       />
       <ClientsTable clients={clients ?? []} initialQuery={q ?? ""} />
