@@ -15,6 +15,7 @@ import {
   type PdfDocumentType,
 } from "@/lib/proposals/document-types";
 import type { PdfInvoiceOverride } from "@/lib/pdf/types";
+import { getLineItemDisplay } from "@/lib/pdf/line-items";
 
 function BankDetailsBlock({
   branding,
@@ -106,11 +107,13 @@ function LineItemsTable({
   fmt,
   styles,
   documentType,
+  proposalTitle,
 }: {
   phases: ReturnType<typeof filterPhasesForDocument>;
   fmt: (n: number) => string;
   styles: ReturnType<typeof createPdfStyles>;
   documentType: PdfDocumentType;
+  proposalTitle: string;
 }) {
   const compact = documentType === "invoice";
 
@@ -133,19 +136,27 @@ function LineItemsTable({
       {phases.map((phase) => (
         <View key={phase.id}>
           <Text style={styles.phaseTitle}>{phase.name}</Text>
-          {phase.groups.map((group) => (
-            <View key={group.id} style={styles.groupRow}>
-              <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={styles.groupTitle}>{group.title}</Text>
-                {documentType === "cost_sheet" && group.description ? (
-                  <Text style={styles.groupDesc}>{group.description}</Text>
-                ) : !compact && group.description ? (
-                  <Text style={styles.groupDesc}>{group.description}</Text>
-                ) : null}
+          {phase.groups.map((group) => {
+            const { heading, subtext } = getLineItemDisplay(group, {
+              proposalTitle,
+              phaseName: phase.name,
+            });
+            const showSubtext =
+              Boolean(subtext) &&
+              !(compact && (subtext?.length ?? 0) > 140);
+
+            return (
+              <View key={group.id} style={styles.groupRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.groupTitle}>{heading}</Text>
+                  {showSubtext ? (
+                    <Text style={styles.groupDesc}>{subtext}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.amount}>{fmt(Number(group.amount))}</Text>
               </View>
-              <Text style={styles.amount}>{fmt(Number(group.amount))}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       ))}
     </>
@@ -314,6 +325,7 @@ export function ProposalDocument({
           fmt={fmt}
           styles={styles}
           documentType={documentType}
+          proposalTitle={proposal.title}
         />
 
         {invoiceOverride ? (
