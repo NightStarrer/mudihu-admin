@@ -15,6 +15,21 @@ import { parseProjectBrief } from "@/types/client-project-brief";
 const CLIENT_COLUMNS =
   "id, agency_id, company_name, contact_person, email, phone, gst_number, address, business_category, industry_tags, project_brief, notes, currency_code, created_at, updated_at";
 
+function normalizeClient(row: Record<string, unknown>): Client {
+  const industryTags = row.industry_tags;
+  return {
+    ...(row as Omit<Client, "industry_tags" | "currency_code" | "project_brief">),
+    industry_tags: Array.isArray(industryTags)
+      ? (industryTags as string[])
+      : [],
+    currency_code:
+      typeof row.currency_code === "string" && row.currency_code
+        ? row.currency_code
+        : "INR",
+    project_brief: parseProjectBrief(row.project_brief),
+  };
+}
+
 export default async function ClientDetailPage({
   params,
   searchParams,
@@ -32,13 +47,10 @@ export default async function ClientDetailPage({
     .eq("id", id)
     .single();
 
-  if (clientError) {
-    console.error("Client fetch error:", clientError.message);
-    if (clientError.code === "PGRST116") notFound();
-    throw new Error(clientError.message);
+  if (clientError || !client) {
+    console.error("Client fetch error:", clientError?.message);
+    notFound();
   }
-
-  if (!client) notFound();
 
   const [
     { data: notes, error: notesError },
@@ -60,7 +72,7 @@ export default async function ClientDetailPage({
   if (proposalsError)
     console.error("Client proposals fetch error:", proposalsError.message);
 
-  const typedClient = client as Client;
+  const typedClient = normalizeClient(client as Record<string, unknown>);
   const showEditBrief = tab !== "brief";
 
   return (
@@ -89,10 +101,7 @@ export default async function ClientDetailPage({
       />
 
       <ClientDetailTabs
-        client={{
-          ...typedClient,
-          project_brief: parseProjectBrief(typedClient.project_brief),
-        }}
+        client={typedClient}
         notes={notes ?? []}
         proposals={proposals ?? []}
         initialTab={tab}

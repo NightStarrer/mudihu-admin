@@ -1,9 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientForm } from "@/components/clients/client-form";
 import { ClientProjectBriefForm } from "@/components/clients/client-project-brief-form";
@@ -20,6 +18,12 @@ function parseTab(tab: string | undefined): ClientTab {
   return "overview";
 }
 
+function tabHref(clientId: string, tab: ClientTab) {
+  return tab === "overview"
+    ? `/dashboard/clients/${clientId}`
+    : `/dashboard/clients/${clientId}?tab=${tab}`;
+}
+
 export function ClientDetailTabs({
   client,
   notes,
@@ -31,29 +35,21 @@ export function ClientDetailTabs({
   proposals: { id: string; title: string; status: ProposalStatus; created_at: string }[];
   initialTab?: string;
 }) {
-  const router = useRouter();
-  const [tabPending, startTabTransition] = useTransition();
-  const tab = parseTab(initialTab);
+  const [tab, setTab] = useState<ClientTab>(() => parseTab(initialTab));
+
+  useEffect(() => {
+    setTab(parseTab(initialTab));
+  }, [initialTab]);
 
   function onTabChange(value: string) {
-    const params = new URLSearchParams();
-    if (value !== "overview") params.set("tab", value);
-    const qs = params.toString();
-    startTabTransition(() => {
-      router.replace(
-        `/dashboard/clients/${client.id}${qs ? `?${qs}` : ""}`,
-        { scroll: false }
-      );
-    });
+    const next = parseTab(value);
+    setTab(next);
+    const href = tabHref(client.id, next);
+    window.history.replaceState(null, "", href);
   }
 
   return (
-    <Tabs value={tab} onValueChange={onTabChange} className="relative space-y-4 sm:space-y-6">
-      {tabPending ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/60">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      ) : null}
+    <Tabs value={tab} onValueChange={onTabChange} className="space-y-4 sm:space-y-6">
       <TabsList className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="brief">Project brief</TabsTrigger>
@@ -61,7 +57,7 @@ export function ClientDetailTabs({
         <TabsTrigger value="proposals">Proposals</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="overview">
+      <TabsContent value="overview" keepMounted>
         <Card className="border-border/60">
           <CardContent className="pt-6">
             <ClientForm client={client} />
@@ -69,7 +65,7 @@ export function ClientDetailTabs({
         </Card>
       </TabsContent>
 
-      <TabsContent value="brief">
+      <TabsContent value="brief" keepMounted>
         <Card className="border-border/60">
           <CardContent className="pt-6">
             <ClientProjectBriefForm client={client} />
@@ -77,11 +73,11 @@ export function ClientDetailTabs({
         </Card>
       </TabsContent>
 
-      <TabsContent value="notes">
+      <TabsContent value="notes" keepMounted>
         <ClientNotes clientId={client.id} notes={notes} />
       </TabsContent>
 
-      <TabsContent value="proposals">
+      <TabsContent value="proposals" keepMounted>
         <Card className="border-border/60">
           <CardHeader>
             <CardTitle className="text-lg">Proposals</CardTitle>
@@ -111,5 +107,5 @@ export function ClientDetailTabs({
 }
 
 export function clientBriefHref(clientId: string) {
-  return `/dashboard/clients/${clientId}?tab=brief`;
+  return tabHref(clientId, "brief");
 }

@@ -2,13 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { addClientNoteAction } from "@/app/actions/clients";
 import type { ClientNote } from "@/types/database";
 import { toast } from "sonner";
+
+function formatNoteDate(iso: string) {
+  const d = parseISO(iso);
+  if (!isValid(d)) return iso;
+  return format(d, "PPp");
+}
 
 export function ClientNotes({
   clientId,
@@ -61,7 +67,7 @@ export function ClientNotes({
             <CardContent className="pt-4">
               <p className="text-sm whitespace-pre-wrap">{note.content}</p>
               <p className="mt-2 text-xs text-muted-foreground">
-                {format(new Date(note.created_at), "PPp")}
+                {formatNoteDate(note.created_at)}
               </p>
             </CardContent>
           </Card>
