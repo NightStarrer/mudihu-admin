@@ -58,12 +58,13 @@ export function DocumentDatesCard({
   return (
     <Card className="border-border/60">
       <CardHeader>
-        <CardTitle className="text-lg">Dates & invoice tracking</CardTitle>
+        <CardTitle className="text-lg">Document dates</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          Set dates before exporting PDFs. Empty dates default to today on the
-          PDF. Invoice fields help admins filter and track billing.
+          Dates for proposal and cost sheet PDFs. The invoice number below is
+          only for the &quot;Export full invoice PDF&quot; button in the
+          sidebar — milestone invoices in the card above have their own numbers.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <DateField

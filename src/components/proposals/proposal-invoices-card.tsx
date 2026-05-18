@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -55,6 +54,12 @@ export function ProposalInvoicesCard({
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
+
+  useEffect(() => {
+    if (!proposal.phases.some((p) => p.id === phaseId)) {
+      setPhaseId(proposal.phases[0]?.id ?? "");
+    }
+  }, [proposal.phases, phaseId]);
 
   const selectedPhase = proposal.phases.find((p) => p.id === phaseId);
   const preview =
@@ -145,27 +150,29 @@ export function ProposalInvoicesCard({
   return (
     <Card className="border-border/60">
       <CardHeader>
-        <CardTitle className="text-lg">Invoices</CardTitle>
+        <CardTitle className="text-lg">Milestone invoices</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Bill a percentage of a phase subtotal. Mark paid when received.
+          Create one invoice per billing milestone (e.g. 50% of Phase 1). Each
+          gets its own number and PDF. This is separate from the full-proposal
+          total in the summary sidebar.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-4">
           <div>
-            <p className="text-xs text-muted-foreground">Project total</p>
+            <p className="text-xs text-muted-foreground">Full proposal value</p>
             <p className="font-medium">{fmt(balance.total)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Invoiced</p>
+            <p className="text-xs text-muted-foreground">On invoices</p>
             <p className="font-medium">{fmt(balance.invoiced)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Paid</p>
+            <p className="text-xs text-muted-foreground">Received</p>
             <p className="font-medium text-primary">{fmt(balance.paid)}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Remaining</p>
+            <p className="text-xs text-muted-foreground">Still to collect</p>
             <p className="font-medium">{fmt(balance.remaining)}</p>
           </div>
         </div>
@@ -179,8 +186,10 @@ export function ProposalInvoicesCard({
                 value={phaseId}
                 onValueChange={(v) => v && setPhaseId(v)}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select phase" />
+                <SelectTrigger className="w-full">
+                  <span className="truncate">
+                    {selectedPhase?.name ?? "Select phase"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {proposal.phases.map((p) => (
@@ -211,13 +220,21 @@ export function ProposalInvoicesCard({
             </div>
           </div>
           {selectedPhase && preview ? (
-            <p className="text-xs text-muted-foreground">
-              Phase subtotal {fmt(calculatePhaseSubtotal(selectedPhase as PhaseWithGroups))}
-              {" → "}
-              after discount {fmt(calculatePhaseAfterDiscount(selectedPhase as PhaseWithGroups))}
-              {" → "}
-              invoice {fmt(preview.amountTotal)} (incl. GST)
-            </p>
+            <div className="rounded-md bg-background px-3 py-2 text-sm">
+              <p className="font-medium text-foreground">
+                This invoice: {fmt(preview.amountTotal)}
+                {gstRate > 0
+                  ? ` (incl. ${gstRate}% GST)`
+                  : " (GST not applied)"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {billingPercent}% of {selectedPhase.name}: subtotal{" "}
+                {fmt(calculatePhaseSubtotal(selectedPhase as PhaseWithGroups))}
+                {" → "}
+                after phase discount{" "}
+                {fmt(calculatePhaseAfterDiscount(selectedPhase as PhaseWithGroups))}
+              </p>
+            </div>
           ) : null}
           <Button
             size="sm"

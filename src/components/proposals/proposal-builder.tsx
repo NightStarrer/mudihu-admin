@@ -567,7 +567,7 @@ export function ProposalBuilder({
             <Separator />
 
             <p className="text-xs font-medium text-muted-foreground">
-              Invoice (included items)
+              Full invoice preview (all phases marked for invoice)
             </p>
             <div className="flex justify-between">
               <span>Subtotal</span>
@@ -584,7 +584,7 @@ export function ProposalBuilder({
               <span>{fmt(invoiceTotals.gstAmount)}</span>
             </div>
             <div className="flex justify-between text-base font-semibold">
-              <span>Amount due</span>
+              <span>If everything invoiced at once</span>
               <span className="text-primary">{fmt(invoiceTotals.total)}</span>
             </div>
 
@@ -612,7 +612,9 @@ export function ProposalBuilder({
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                {exporting === "invoice" ? "Generating…" : "Export summary invoice"}
+                {exporting === "invoice"
+                  ? "Generating…"
+                  : "Export full invoice PDF"}
               </Button>
               <Button
                 variant="outline"
