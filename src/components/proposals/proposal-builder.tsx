@@ -36,11 +36,13 @@ import {
 } from "@/lib/proposals/calculate-totals";
 import { discountSummaryLine } from "@/lib/proposals/discount";
 import { CoverLetterCard } from "@/components/proposals/cover-letter-card";
+import { DiscountFields } from "@/components/proposals/discount-fields";
 import { PhaseDiscountFields } from "@/components/proposals/phase-discount-fields";
 import { ProposalInvoicesCard } from "@/components/proposals/proposal-invoices-card";
 import { DocumentDatesCard } from "@/components/proposals/document-dates-card";
 import { currencySymbolForUi } from "@/lib/money/currency";
 import type { PdfDocumentType } from "@/lib/proposals/document-types";
+import { downloadPdfDataUrl } from "@/lib/pdf/download-client";
 import { DocumentInclusionToggles } from "@/components/proposals/document-inclusion-toggles";
 import type {
   ProposalInvoice,
@@ -113,8 +115,11 @@ export function ProposalBuilder({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Export failed");
-      window.open(data.url, "_blank");
-      toast.success("PDF generated");
+      downloadPdfDataUrl(
+        data.url as string,
+        (data.filename as string) ?? `${documentType}.pdf`
+      );
+      toast.success("PDF downloaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Export failed");
     } finally {
@@ -273,6 +278,13 @@ export function ProposalBuilder({
         </Card>
 
         <DocumentDatesCard proposal={proposal} />
+
+        <DiscountFields
+          proposalId={proposal.id}
+          discountType={proposal.discount_type ?? "none"}
+          discountValue={Number(proposal.discount_value ?? 0)}
+          discountLabel={proposal.discount_label}
+        />
 
         <ProposalInvoicesCard
           proposal={proposal}
@@ -546,6 +558,35 @@ export function ProposalBuilder({
                 <span>- {fmt(proposalTotals.phaseDiscountTotal)}</span>
               </div>
             ) : null}
+            {proposalTotals.phaseDiscountTotal > 0 &&
+            proposalTotals.globalDiscountAmount > 0 ? (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-950 dark:text-amber-100">
+                <p className="mb-2">
+                  Both phase and proposal-wide discounts are active (
+                  {fmt(proposalTotals.discountAmount)} total off). For one
+                  discount on Phase 1 only, remove the proposal-wide discount.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await updateProposalMetaAction(proposal.id, {
+                        discount_type: "none",
+                        discount_value: 0,
+                      });
+                      router.refresh();
+                      toast.success("Proposal-wide discount removed");
+                    })
+                  }
+                >
+                  Remove proposal-wide discount
+                </Button>
+              </div>
+            ) : null}
             {proposalTotals.globalDiscountAmount > 0 ? (
               <div className="flex justify-between text-primary">
                 <span>
@@ -581,6 +622,17 @@ export function ProposalBuilder({
               <div className="flex justify-between text-primary">
                 <span>Phase discounts</span>
                 <span>- {fmt(invoiceTotals.phaseDiscountTotal)}</span>
+              </div>
+            ) : null}
+            {invoiceTotals.globalDiscountAmount > 0 ? (
+              <div className="flex justify-between text-primary">
+                <span>
+                  {discountSummaryLine(
+                    discount,
+                    invoiceTotals.globalDiscountAmount
+                  )}
+                </span>
+                <span>- {fmt(invoiceTotals.globalDiscountAmount)}</span>
               </div>
             ) : null}
             {showGst ? (

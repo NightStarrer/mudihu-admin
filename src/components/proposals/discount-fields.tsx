@@ -45,10 +45,11 @@ export function DiscountFields({
   return (
     <Card className="border-border/60">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Discount</CardTitle>
+        <CardTitle className="text-lg">Proposal-wide discount</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Optional. Shown as a separate line on the PDF before the total — applied
-          after phase discounts.
+          Optional extra reduction on the whole proposal, applied after phase
+          discounts. If you only discount one phase, use the phase discount on
+          that phase and set this to <strong>No discount</strong>.
         </p>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">

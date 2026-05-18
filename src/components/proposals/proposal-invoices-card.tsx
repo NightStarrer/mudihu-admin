@@ -21,6 +21,7 @@ import {
 import { formatMoney } from "@/lib/money/currency";
 import type { ProposalInvoice, ProposalWithRelations } from "@/types/database";
 import { toast } from "sonner";
+import { downloadPdfDataUrl } from "@/lib/pdf/download-client";
 import { Download, Loader2, Mail, Plus, Trash2 } from "lucide-react";
 import {
   calculateInvoiceSlice,
@@ -112,8 +113,11 @@ export function ProposalInvoicesCard({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Export failed");
-      window.open(data.url, "_blank");
-      toast.success("PDF generated");
+      downloadPdfDataUrl(
+        data.url as string,
+        (data.filename as string) ?? "invoice.pdf"
+      );
+      toast.success("PDF downloaded");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Export failed");
     } finally {

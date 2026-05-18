@@ -296,7 +296,6 @@ export function ProposalDocument({
 
           <View style={styles.infoCard}>
             <Text style={styles.infoCardLabel}>Details</Text>
-            <Text style={styles.infoLine}>Currency: {currency}</Text>
             {documentType === "proposal" && proposal.proposal_date ? (
               <Text style={styles.infoLine}>
                 Valid from: {formatPdfDateShort(proposal.proposal_date)}
