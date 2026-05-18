@@ -28,6 +28,18 @@ export function applyDiscount(
   };
 }
 
+/** Label for a per-phase discount line in UI and PDFs. */
+export function phaseDiscountLineLabel(
+  phaseName: string,
+  customLabel?: string | null
+): string {
+  const custom = customLabel?.trim();
+  if (custom && custom !== "Discount") {
+    return `${phaseName}: ${custom}`;
+  }
+  return `${phaseName} discount`;
+}
+
 export function discountSummaryLine(
   opts: DiscountOptions,
   discountAmount: number

@@ -12,6 +12,7 @@ import {
 } from "@/lib/proposals/calculate-totals";
 import type { PhaseWithGroups } from "@/lib/proposals/calculate-totals";
 import { fetchProposalWithRelations } from "@/lib/proposals/fetch-proposal";
+import type { ProposalInvoiceStatus } from "@/types/database";
 
 function nextInvoiceNumber(proposalId: string, count: number) {
   const y = new Date().getFullYear();
@@ -82,16 +83,31 @@ export async function markProposalInvoicePaidAction(
   invoiceId: string,
   proposalId: string
 ) {
+  return updateProposalInvoiceStatusAction(invoiceId, proposalId, "paid");
+}
+
+export async function updateProposalInvoiceStatusAction(
+  invoiceId: string,
+  proposalId: string,
+  status: ProposalInvoiceStatus
+) {
   await requireProfile();
   const supabase = await createClient();
 
+  const update: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (status === "paid") {
+    update.paid_at = new Date().toISOString();
+  } else {
+    update.paid_at = null;
+  }
+
   const { error } = await supabase
     .from("proposal_invoices")
-    .update({
-      status: "paid",
-      paid_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", invoiceId);
 
   if (error) throw new Error(error.message);

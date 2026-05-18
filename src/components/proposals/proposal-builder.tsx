@@ -34,7 +34,10 @@ import {
   formatMoney,
   hasGstRate,
 } from "@/lib/proposals/calculate-totals";
-import { discountSummaryLine } from "@/lib/proposals/discount";
+import {
+  discountSummaryLine,
+  phaseDiscountLineLabel,
+} from "@/lib/proposals/discount";
 import { CoverLetterCard } from "@/components/proposals/cover-letter-card";
 import { DiscountFields } from "@/components/proposals/discount-fields";
 import { PhaseDiscountFields } from "@/components/proposals/phase-discount-fields";
@@ -542,9 +545,19 @@ export function ProposalBuilder({
               Proposal total
             </p>
             {proposalTotals.phaseTotals.map((pt) => (
-              <div key={pt.phaseId} className="flex justify-between">
-                <span className="text-muted-foreground">{pt.phaseName}</span>
-                <span>{fmt(pt.subtotal)}</span>
+              <div key={pt.phaseId} className="space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{pt.phaseName}</span>
+                  <span>{fmt(pt.subtotal)}</span>
+                </div>
+                {pt.discountAmount > 0 ? (
+                  <div className="flex justify-between pl-3 text-xs text-primary">
+                    <span>
+                      {phaseDiscountLineLabel(pt.phaseName, pt.discountLabel)}
+                    </span>
+                    <span>- {fmt(pt.discountAmount)}</span>
+                  </div>
+                ) : null}
               </div>
             ))}
             <Separator />
@@ -552,12 +565,6 @@ export function ProposalBuilder({
               <span>Subtotal</span>
               <span>{fmt(proposalTotals.subtotal)}</span>
             </div>
-            {proposalTotals.phaseDiscountTotal > 0 ? (
-              <div className="flex justify-between text-primary">
-                <span>Phase discounts</span>
-                <span>- {fmt(proposalTotals.phaseDiscountTotal)}</span>
-              </div>
-            ) : null}
             {proposalTotals.phaseDiscountTotal > 0 &&
             proposalTotals.globalDiscountAmount > 0 ? (
               <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs text-amber-950 dark:text-amber-100">
@@ -618,12 +625,19 @@ export function ProposalBuilder({
               <span>Subtotal</span>
               <span>{fmt(invoiceTotals.subtotal)}</span>
             </div>
-            {invoiceTotals.phaseDiscountTotal > 0 ? (
-              <div className="flex justify-between text-primary">
-                <span>Phase discounts</span>
-                <span>- {fmt(invoiceTotals.phaseDiscountTotal)}</span>
-              </div>
-            ) : null}
+            {invoiceTotals.phaseTotals
+              .filter((pt) => pt.discountAmount > 0)
+              .map((pt) => (
+                <div
+                  key={pt.phaseId}
+                  className="flex justify-between text-xs text-primary"
+                >
+                  <span>
+                    {phaseDiscountLineLabel(pt.phaseName, pt.discountLabel)}
+                  </span>
+                  <span>- {fmt(pt.discountAmount)}</span>
+                </div>
+              ))}
             {invoiceTotals.globalDiscountAmount > 0 ? (
               <div className="flex justify-between text-primary">
                 <span>

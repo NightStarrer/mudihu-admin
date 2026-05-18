@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,15 +12,21 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
   createProposalInvoiceAction,
   deleteProposalInvoiceAction,
   markProposalInvoicePaidAction,
+  updateProposalInvoiceStatusAction,
 } from "@/app/actions/invoices";
 import { formatMoney } from "@/lib/money/currency";
-import type { ProposalInvoice, ProposalWithRelations } from "@/types/database";
+import { phaseDiscountLineLabel } from "@/lib/proposals/discount";
+import type {
+  ProposalInvoice,
+  ProposalInvoiceStatus,
+  ProposalWithRelations,
+} from "@/types/database";
 import { toast } from "sonner";
 import { downloadPdfDataUrl } from "@/lib/pdf/download-client";
 import { Download, Loader2, Mail, Plus, Trash2 } from "lucide-react";
@@ -27,9 +34,12 @@ import {
   calculateInvoiceSlice,
   calculatePhaseAfterDiscount,
   calculatePhaseSubtotal,
+  discountFromPhase,
   hasGstRate,
 } from "@/lib/proposals/calculate-totals";
 import type { PhaseWithGroups } from "@/lib/proposals/calculate-totals";
+
+const INVOICE_STATUSES: ProposalInvoiceStatus[] = ["draft", "sent", "paid"];
 
 export function ProposalInvoicesCard({
   proposal,
@@ -57,6 +67,8 @@ export function ProposalInvoicesCard({
   const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
   const showGst = hasGstRate(gstRate);
+  const clientEmail = proposal.client.email?.trim() ?? "";
+  const clientEditHref = `/dashboard/clients/${proposal.client.id}`;
 
   useEffect(() => {
     if (!proposal.phases.some((p) => p.id === phaseId)) {
@@ -71,6 +83,17 @@ export function ProposalInvoicesCard({
           selectedPhase as PhaseWithGroups,
           Number(billingPercent) || 0,
           gstRate
+        )
+      : null;
+
+  const phaseDiscountLabel =
+    selectedPhase &&
+    discountFromPhase(selectedPhase).type !== "none" &&
+    calculatePhaseSubtotal(selectedPhase as PhaseWithGroups) >
+      calculatePhaseAfterDiscount(selectedPhase as PhaseWithGroups)
+      ? phaseDiscountLineLabel(
+          selectedPhase.name,
+          selectedPhase.discount_label
         )
       : null;
 
@@ -126,9 +149,8 @@ export function ProposalInvoicesCard({
   }
 
   async function handleEmail(invoiceId: string) {
-    const to = proposal.client.email;
-    if (!to) {
-      toast.error("Client has no email on file");
+    if (!clientEmail) {
+      toast.error("Add a client email before sending");
       return;
     }
     setEmailingId(invoiceId);
@@ -140,17 +162,22 @@ export function ProposalInvoicesCard({
           proposalId: proposal.id,
           documentType: "invoice",
           invoiceId,
-          toEmail: to,
+          toEmail: clientEmail,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Send failed");
-      toast.success(`Invoice emailed to ${to}`);
+      toast.success(`Invoice emailed to ${clientEmail}`);
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Email failed");
     } finally {
       setEmailingId(null);
     }
+  }
+
+  function phaseNameForInvoice(inv: ProposalInvoice) {
+    return proposal.phases.find((p) => p.id === inv.phase_id)?.name ?? "Phase";
   }
 
   return (
@@ -159,9 +186,19 @@ export function ProposalInvoicesCard({
         <CardTitle className="text-lg">Milestone invoices</CardTitle>
         <p className="text-sm text-muted-foreground">
           Create one invoice per billing milestone (e.g. 50% of Phase 1). Each
-          gets its own number and PDF. This is separate from the full-proposal
-          total in the summary sidebar.
+          gets its own number and PDF. Status: <strong>Draft</strong> until you
+          email or mark sent; <strong>Sent</strong> after email;{" "}
+          <strong>Paid</strong> when received.
         </p>
+        {!clientEmail ? (
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Email is disabled —{" "}
+            <Link href={clientEditHref} className="font-medium underline">
+              add an email on the client record
+            </Link>{" "}
+            to send invoices from here.
+          </p>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-4">
@@ -234,9 +271,13 @@ export function ProposalInvoicesCard({
               <p className="mt-1 text-xs text-muted-foreground">
                 {billingPercent}% of {selectedPhase.name}: subtotal{" "}
                 {fmt(calculatePhaseSubtotal(selectedPhase as PhaseWithGroups))}
-                {" → "}
-                after phase discount{" "}
-                {fmt(calculatePhaseAfterDiscount(selectedPhase as PhaseWithGroups))}
+                {phaseDiscountLabel
+                  ? ` → after ${phaseDiscountLabel} ${fmt(
+                      calculatePhaseAfterDiscount(
+                        selectedPhase as PhaseWithGroups
+                      )
+                    )}`
+                  : null}
               </p>
             </div>
           ) : null}
@@ -258,110 +299,123 @@ export function ProposalInvoicesCard({
           <p className="text-sm text-muted-foreground">No invoices yet.</p>
         ) : (
           <ul className="space-y-3">
-            {invoices.map((inv) => (
-              <li
-                key={inv.id}
-                className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium">{inv.invoice_number}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {fmt(Number(inv.amount_total))} · {inv.billing_percent}% ·{" "}
-                    {inv.invoice_date}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge
-                    variant={inv.status === "paid" ? "default" : "secondary"}
-                    className="capitalize"
-                  >
-                    {inv.status}
-                  </Badge>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={exportingId === inv.id}
-                    onClick={() => handleExportPdf(inv.id)}
-                  >
-                    {exportingId === inv.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={emailingId === inv.id || !proposal.client.email}
-                    onClick={() => handleEmail(inv.id)}
-                    title={
-                      proposal.client.email
-                        ? `Email ${proposal.client.email}`
-                        : "No client email"
-                    }
-                  >
-                    {emailingId === inv.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Mail className="h-4 w-4" />
-                    )}
-                  </Button>
-                  {inv.status !== "paid" ? (
-                    <Button
-                      size="sm"
+            {invoices.map((inv) => {
+              const phaseName = phaseNameForInvoice(inv);
+              return (
+                <li
+                  key={inv.id}
+                  className="flex flex-col gap-2 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-medium">{inv.invoice_number}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {phaseName} · {fmt(Number(inv.amount_total))} ·{" "}
+                      {inv.billing_percent}% · {inv.invoice_date}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={inv.status}
                       disabled={pending}
-                      onClick={() =>
+                      onValueChange={(v) => {
+                        if (!v) return;
+                        const status = v as ProposalInvoiceStatus;
                         startTransition(async () => {
                           try {
-                            await markProposalInvoicePaidAction(
-                              inv.id,
-                              proposal.id
-                            );
-                            toast.success("Marked as paid");
+                            if (status === "paid") {
+                              await markProposalInvoicePaidAction(
+                                inv.id,
+                                proposal.id
+                              );
+                            } else {
+                              await updateProposalInvoiceStatusAction(
+                                inv.id,
+                                proposal.id,
+                                status
+                              );
+                            }
                             router.refresh();
                           } catch (err) {
                             toast.error(
-                              err instanceof Error
-                                ? err.message
-                                : "Failed"
+                              err instanceof Error ? err.message : "Failed"
                             );
                           }
-                        })
-                      }
+                        });
+                      }}
                     >
-                      Mark paid
-                    </Button>
-                  ) : null}
-                  {inv.status !== "paid" ? (
+                      <SelectTrigger className="h-8 w-[110px] capitalize">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INVOICE_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="capitalize">
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      disabled={pending}
-                      onClick={() =>
-                        startTransition(async () => {
-                          try {
-                            await deleteProposalInvoiceAction(
-                              inv.id,
-                              proposal.id
-                            );
-                            toast.success("Invoice deleted");
-                            router.refresh();
-                          } catch (err) {
-                            toast.error(
-                              err instanceof Error
-                                ? err.message
-                                : "Failed"
-                            );
-                          }
-                        })
+                      disabled={exportingId === inv.id}
+                      onClick={() => handleExportPdf(inv.id)}
+                      title="Download PDF"
+                    >
+                      {exportingId === inv.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={emailingId === inv.id || !clientEmail}
+                      onClick={() => handleEmail(inv.id)}
+                      title={
+                        clientEmail
+                          ? `Email PDF to ${clientEmail}`
+                          : "Add client email to enable"
                       }
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      {emailingId === inv.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Mail className="h-4 w-4" />
+                      )}
                     </Button>
-                  ) : null}
-                </div>
-              </li>
-            ))}
+                    {inv.status !== "paid" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={pending}
+                        onClick={() =>
+                          startTransition(async () => {
+                            try {
+                              await deleteProposalInvoiceAction(
+                                inv.id,
+                                proposal.id
+                              );
+                              toast.success("Invoice deleted");
+                              router.refresh();
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed"
+                              );
+                            }
+                          })
+                        }
+                        title="Delete invoice"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </CardContent>

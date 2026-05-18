@@ -45,7 +45,7 @@ export function PhaseDiscountFields({
   return (
     <div className="grid gap-3 rounded-lg border border-dashed border-border/60 bg-muted/20 p-3 sm:grid-cols-3">
       <p className="text-xs font-medium text-muted-foreground sm:col-span-3">
-        Phase discount (on phase subtotal)
+        Discount on this phase&apos;s subtotal (shown as &quot;Phase name discount&quot; on PDFs)
       </p>
       <div className="space-y-1.5">
         <Label className="text-xs">Type</Label>

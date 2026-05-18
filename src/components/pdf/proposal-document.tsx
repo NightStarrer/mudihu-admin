@@ -8,7 +8,10 @@ import {
   discountFromProposal,
   hasGstRate,
 } from "@/lib/proposals/calculate-totals";
-import { discountSummaryLine } from "@/lib/proposals/discount";
+import {
+  discountSummaryLine,
+  phaseDiscountLineLabel,
+} from "@/lib/proposals/discount";
 import {
   filterPhasesForDocument,
   PDF_DOCUMENT_LABELS,
@@ -327,10 +330,20 @@ export function ProposalDocument({
           proposalTitle={proposal.title}
         />
 
+        {proposal.complimentary_services && documentType === "proposal" ? (
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Complimentary services</Text>
+            <Text style={styles.bodyText}>{proposal.complimentary_services}</Text>
+          </View>
+        ) : null}
+
         {invoiceOverride ? (
           <View style={styles.totalsBox}>
             <View style={styles.totalRow}>
-              <Text>Subtotal ({invoiceOverride.billingPercent}% of phase)</Text>
+              <Text>
+                Subtotal ({invoiceOverride.billingPercent}% of{" "}
+                {invoiceOverride.phaseName})
+              </Text>
               <Text>{fmt(invoiceOverride.amountSubtotal)}</Text>
             </View>
             {showGst ? (
@@ -358,7 +371,7 @@ export function ProposalDocument({
                   {pt.discountAmount > 0 ? (
                     <View style={styles.totalRow}>
                       <Text style={{ fontSize: 8, color: "#666" }}>
-                        Phase discount
+                        {phaseDiscountLineLabel(pt.phaseName, pt.discountLabel)}
                       </Text>
                       <Text style={{ fontSize: 8, color: "#666" }}>
                         - {fmt(pt.discountAmount)}
@@ -372,9 +385,17 @@ export function ProposalDocument({
                 <Text>Subtotal</Text>
                 <Text>{fmt(totals.subtotal)}</Text>
               </View>
-              {totals.phaseDiscountTotal > 0 ? (
+              {documentType !== "proposal" &&
+              totals.phaseDiscountTotal > 0 ? (
                 <View style={styles.totalRow}>
-                  <Text>Phase discounts</Text>
+                  <Text>
+                    {totals.phaseTotals
+                      .filter((pt) => pt.discountAmount > 0)
+                      .map((pt) =>
+                        phaseDiscountLineLabel(pt.phaseName, pt.discountLabel)
+                      )
+                      .join(" · ") || "Phase discounts"}
+                  </Text>
                   <Text>- {fmt(totals.phaseDiscountTotal)}</Text>
                 </View>
               ) : null}
@@ -411,13 +432,6 @@ export function ProposalDocument({
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Payment terms</Text>
             <Text style={styles.bodyText}>{paymentTerms}</Text>
-          </View>
-        ) : null}
-
-        {proposal.complimentary_services && documentType === "proposal" ? (
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Complimentary services</Text>
-            <Text style={styles.bodyText}>{proposal.complimentary_services}</Text>
           </View>
         ) : null}
 

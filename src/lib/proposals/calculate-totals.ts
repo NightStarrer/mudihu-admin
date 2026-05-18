@@ -47,6 +47,7 @@ export type PhaseTotalRow = {
   phaseName: string;
   subtotal: number;
   discountAmount: number;
+  discountLabel: string;
   afterDiscount: number;
 };
 
@@ -80,6 +81,7 @@ export function calculateProposalTotals(
       phaseName: p.name,
       subtotal,
       discountAmount,
+      discountLabel: phaseDisc.label,
       afterDiscount,
     };
   });
