@@ -6,6 +6,7 @@ import type { BrandingTokens, ProposalWithRelations } from "@/types/database";
 import {
   calculateProposalTotals,
   discountFromProposal,
+  hasGstRate,
 } from "@/lib/proposals/calculate-totals";
 import { discountSummaryLine } from "@/lib/proposals/discount";
 import {
@@ -163,14 +164,21 @@ export function ProposalDocument({
   invoiceOverride?: PdfInvoiceOverride;
 }) {
   const styles = createPdfStyles(branding);
-  const labels = PDF_DOCUMENT_LABELS[documentType];
+  const gstRate = Number(proposal.gst_rate);
+  const showGst = hasGstRate(gstRate);
+  const baseLabels = PDF_DOCUMENT_LABELS[documentType];
+  const labels = {
+    ...baseLabels,
+    title:
+      documentType === "invoice" && !showGst ? "Invoice" : baseLabels.title,
+  };
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatPdfMoney(n, currency);
   const phases = filterPhasesForDocument(proposal.phases, documentType);
   const discount = discountFromProposal(proposal);
   const totals = calculateProposalTotals(
     proposal.phases,
-    Number(proposal.gst_rate),
+    gstRate,
     documentType,
     discount
   );
@@ -242,10 +250,12 @@ export function ProposalDocument({
             >
               {fmt(invoiceOverride.amountTotal)}
             </Text>
-            <Text style={{ fontSize: 8, color: "#fff", marginTop: 6 }}>
-              Subtotal {fmt(invoiceOverride.amountSubtotal)} + GST{" "}
-              {fmt(invoiceOverride.amountGst)}
-            </Text>
+            {showGst ? (
+              <Text style={{ fontSize: 8, color: "#fff", marginTop: 6 }}>
+                Subtotal {fmt(invoiceOverride.amountSubtotal)} + GST (
+                {gstRate}%) {fmt(invoiceOverride.amountGst)}
+              </Text>
+            ) : null}
           </View>
         ) : null}
 
@@ -312,10 +322,12 @@ export function ProposalDocument({
               <Text>Subtotal ({invoiceOverride.billingPercent}% of phase)</Text>
               <Text>{fmt(invoiceOverride.amountSubtotal)}</Text>
             </View>
-            <View style={styles.totalRow}>
-              <Text>GST ({proposal.gst_rate}%)</Text>
-              <Text>{fmt(invoiceOverride.amountGst)}</Text>
-            </View>
+            {showGst ? (
+              <View style={styles.totalRow}>
+                <Text>GST ({gstRate}%)</Text>
+                <Text>{fmt(invoiceOverride.amountGst)}</Text>
+              </View>
+            ) : null}
             <View style={[styles.totalRow, { marginTop: 6 }]}>
               <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
               <Text style={styles.grandTotal}>
@@ -366,10 +378,12 @@ export function ProposalDocument({
                   <Text>- {fmt(totals.globalDiscountAmount)}</Text>
                 </View>
               ) : null}
-              <View style={styles.totalRow}>
-                <Text>GST ({proposal.gst_rate}%)</Text>
-                <Text>{fmt(totals.gstAmount)}</Text>
-              </View>
+              {showGst ? (
+                <View style={styles.totalRow}>
+                  <Text>GST ({gstRate}%)</Text>
+                  <Text>{fmt(totals.gstAmount)}</Text>
+                </View>
+              ) : null}
               <View style={[styles.totalRow, { marginTop: 6 }]}>
                 <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
                 <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>

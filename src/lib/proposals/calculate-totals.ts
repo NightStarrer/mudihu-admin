@@ -12,6 +12,10 @@ import {
 
 export type PhaseWithGroups = ProposalPhase & { groups: ProposalGroup[] };
 
+export function hasGstRate(gstRate: number | string | null | undefined): boolean {
+  return Number(gstRate) > 0;
+}
+
 export function discountFromProposal(proposal: {
   discount_type?: string | null;
   discount_value?: number | null;

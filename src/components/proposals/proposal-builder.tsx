@@ -32,6 +32,7 @@ import {
   calculateProposalTotals,
   discountFromProposal,
   formatMoney,
+  hasGstRate,
 } from "@/lib/proposals/calculate-totals";
 import { discountSummaryLine } from "@/lib/proposals/discount";
 import { CoverLetterCard } from "@/components/proposals/cover-letter-card";
@@ -77,6 +78,7 @@ export function ProposalBuilder({
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
+  const showGst = hasGstRate(gstRate);
   const discount = discountFromProposal(proposal);
   const proposalTotals = calculateProposalTotals(
     proposal.phases,
@@ -555,10 +557,12 @@ export function ProposalBuilder({
                 <span>- {fmt(proposalTotals.globalDiscountAmount)}</span>
               </div>
             ) : null}
-            <div className="flex justify-between">
-              <span>GST ({proposal.gst_rate}%)</span>
-              <span>{fmt(proposalTotals.gstAmount)}</span>
-            </div>
+            {showGst ? (
+              <div className="flex justify-between">
+                <span>GST ({proposal.gst_rate}%)</span>
+                <span>{fmt(proposalTotals.gstAmount)}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between font-medium">
               <span>Total</span>
               <span>{fmt(proposalTotals.total)}</span>
@@ -579,10 +583,12 @@ export function ProposalBuilder({
                 <span>- {fmt(invoiceTotals.phaseDiscountTotal)}</span>
               </div>
             ) : null}
-            <div className="flex justify-between">
-              <span>GST ({proposal.gst_rate}%)</span>
-              <span>{fmt(invoiceTotals.gstAmount)}</span>
-            </div>
+            {showGst ? (
+              <div className="flex justify-between">
+                <span>GST ({proposal.gst_rate}%)</span>
+                <span>{fmt(invoiceTotals.gstAmount)}</span>
+              </div>
+            ) : null}
             <div className="flex justify-between text-base font-semibold">
               <span>If everything invoiced at once</span>
               <span className="text-primary">{fmt(invoiceTotals.total)}</span>

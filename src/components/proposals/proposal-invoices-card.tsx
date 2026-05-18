@@ -26,6 +26,7 @@ import {
   calculateInvoiceSlice,
   calculatePhaseAfterDiscount,
   calculatePhaseSubtotal,
+  hasGstRate,
 } from "@/lib/proposals/calculate-totals";
 import type { PhaseWithGroups } from "@/lib/proposals/calculate-totals";
 
@@ -54,6 +55,7 @@ export function ProposalInvoicesCard({
   const currency = proposal.client.currency_code ?? "INR";
   const fmt = (n: number) => formatMoney(n, currency);
   const gstRate = Number(proposal.gst_rate);
+  const showGst = hasGstRate(gstRate);
 
   useEffect(() => {
     if (!proposal.phases.some((p) => p.id === phaseId)) {
@@ -223,9 +225,7 @@ export function ProposalInvoicesCard({
             <div className="rounded-md bg-background px-3 py-2 text-sm">
               <p className="font-medium text-foreground">
                 This invoice: {fmt(preview.amountTotal)}
-                {gstRate > 0
-                  ? ` (incl. ${gstRate}% GST)`
-                  : " (GST not applied)"}
+                {showGst ? ` (includes ${gstRate}% GST)` : ""}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {billingPercent}% of {selectedPhase.name}: subtotal{" "}

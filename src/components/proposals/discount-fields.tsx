@@ -47,8 +47,8 @@ export function DiscountFields({
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Discount</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Optional. Shown as a separate line on the PDF before GST — standard on
-          professional proposals and invoices.
+          Optional. Shown as a separate line on the PDF before the total — applied
+          after phase discounts.
         </p>
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-3">
