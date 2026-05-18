@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import { Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ClientForm } from "@/components/clients/client-form";
 import { ClientProjectBriefForm } from "@/components/clients/client-project-brief-form";
@@ -30,20 +32,28 @@ export function ClientDetailTabs({
   initialTab?: string;
 }) {
   const router = useRouter();
+  const [tabPending, startTabTransition] = useTransition();
   const tab = parseTab(initialTab);
 
   function onTabChange(value: string) {
     const params = new URLSearchParams();
     if (value !== "overview") params.set("tab", value);
     const qs = params.toString();
-    router.replace(
-      `/dashboard/clients/${client.id}${qs ? `?${qs}` : ""}`,
-      { scroll: false }
-    );
+    startTabTransition(() => {
+      router.replace(
+        `/dashboard/clients/${client.id}${qs ? `?${qs}` : ""}`,
+        { scroll: false }
+      );
+    });
   }
 
   return (
-    <Tabs value={tab} onValueChange={onTabChange} className="space-y-4 sm:space-y-6">
+    <Tabs value={tab} onValueChange={onTabChange} className="relative space-y-4 sm:space-y-6">
+      {tabPending ? (
+        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/60">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : null}
       <TabsList className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
         <TabsTrigger value="overview">Overview</TabsTrigger>
         <TabsTrigger value="brief">Project brief</TabsTrigger>

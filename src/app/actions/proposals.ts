@@ -169,6 +169,32 @@ export async function updatePhaseInclusionAction(
   revalidatePath(`/dashboard/proposals/${proposalId}`);
 }
 
+export async function updatePhaseDiscountAction(
+  phaseId: string,
+  proposalId: string,
+  data: {
+    discount_type?: "none" | "percent" | "fixed";
+    discount_value?: number;
+    discount_label?: string | null;
+  }
+) {
+  await requireProfile();
+  const supabase = await createClient();
+  const update: Record<string, unknown> = {};
+  if (data.discount_type !== undefined) update.discount_type = data.discount_type;
+  if (data.discount_value !== undefined)
+    update.discount_value = data.discount_value;
+  if (data.discount_label !== undefined)
+    update.discount_label = data.discount_label?.trim() || "Discount";
+
+  const { error } = await supabase
+    .from("proposal_phases")
+    .update(update)
+    .eq("id", phaseId);
+  if (error) throw new Error(error.message);
+  revalidatePath(`/dashboard/proposals/${proposalId}`);
+}
+
 export async function updatePhaseAction(
   phaseId: string,
   proposalId: string,

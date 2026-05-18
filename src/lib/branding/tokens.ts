@@ -16,7 +16,9 @@ function toBankDetails(settings: BrandingSettings): BrandingTokens["bank"] {
     settings.bank_account_name ||
     settings.bank_name ||
     settings.bank_account_number ||
-    settings.bank_ifsc;
+    settings.bank_ifsc ||
+    settings.gpay_name ||
+    settings.gpay_number;
 
   if (!hasAny) return null;
 
@@ -27,6 +29,8 @@ function toBankDetails(settings: BrandingSettings): BrandingTokens["bank"] {
     ifsc: settings.bank_ifsc,
     branch: settings.bank_branch,
     upiId: settings.bank_upi_id,
+    gpayName: settings.gpay_name ?? null,
+    gpayNumber: settings.gpay_number ?? null,
     showOnDocuments: settings.show_bank_on_documents ?? true,
   };
 }

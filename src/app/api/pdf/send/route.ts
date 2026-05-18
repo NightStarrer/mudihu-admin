@@ -1,21 +1,26 @@
 import { NextResponse } from "next/server";
+import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProposalWithRelations } from "@/lib/proposals/fetch-proposal";
 import { toBrandingTokens } from "@/lib/branding/tokens";
 import { renderProposalPdf } from "@/lib/pdf/render";
 import type { Agency, BrandingSettings, ProposalInvoice } from "@/types/database";
-import {
-  filterPhasesForDocument,
-  type PdfDocumentType,
-} from "@/lib/proposals/document-types";
+import type { PdfDocumentType } from "@/lib/proposals/document-types";
 import type { PdfInvoiceOverride } from "@/lib/pdf/types";
-
-const VALID_TYPES: PdfDocumentType[] = ["proposal", "invoice", "cost_sheet"];
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   try {
+    const apiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
+    if (!apiKey || !fromEmail) {
+      return NextResponse.json(
+        { error: "Email is not configured (RESEND_API_KEY, RESEND_FROM_EMAIL)" },
+        { status: 503 }
+      );
+    }
+
     const supabase = await createClient();
     const {
       data: { user },
@@ -26,16 +31,16 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const proposalId = body.proposalId as string | undefined;
-    const documentType = (body.documentType ?? "proposal") as PdfDocumentType;
+    const proposalId = body.proposalId as string;
+    const documentType = (body.documentType ?? "invoice") as PdfDocumentType;
     const invoiceId = body.invoiceId as string | undefined;
+    const toEmail = (body.toEmail as string)?.trim();
 
-    if (!proposalId) {
-      return NextResponse.json({ error: "proposalId required" }, { status: 400 });
-    }
-
-    if (!VALID_TYPES.includes(documentType)) {
-      return NextResponse.json({ error: "Invalid documentType" }, { status: 400 });
+    if (!proposalId || !toEmail) {
+      return NextResponse.json(
+        { error: "proposalId and toEmail required" },
+        { status: 400 }
+      );
     }
 
     let proposal = await fetchProposalWithRelations(proposalId);
@@ -72,6 +77,8 @@ export async function POST(request: Request) {
     );
 
     let invoiceOverride: PdfInvoiceOverride | undefined;
+    let filename = `${documentType}-${proposalId.slice(0, 8)}.pdf`;
+    let subject = `${proposal.title} — ${documentType}`;
 
     if (invoiceId && documentType === "invoice") {
       const { data: invoice, error: invError } = await supabase
@@ -109,17 +116,9 @@ export async function POST(request: Request) {
         billingPercent: Number(inv.billing_percent),
         phaseName: phase.name,
       };
-    } else {
-      const included = filterPhasesForDocument(proposal.phases, documentType);
-      if (!included.length) {
-        return NextResponse.json(
-          {
-            error:
-              "No phases or line items are included for this document type. Check inclusion toggles on the proposal.",
-          },
-          { status: 400 }
-        );
-      }
+
+      filename = `invoice-${inv.invoice_number}.pdf`;
+      subject = `Invoice ${inv.invoice_number} — ${proposal.title}`;
     }
 
     const pdfBuffer = await renderProposalPdf(
@@ -129,25 +128,37 @@ export async function POST(request: Request) {
       invoiceOverride
     );
 
-    const fileLabel = invoiceOverride
-      ? `invoice-${invoiceOverride.invoiceNumber}`
-      : documentType;
-
-    const downloadUrl = bufferToDataUrl(pdfBuffer);
-
-    return NextResponse.json({
-      url: downloadUrl,
-      filename: `${fileLabel}-${proposalId.slice(0, 8)}.pdf`,
+    const resend = new Resend(apiKey);
+    const { error: sendError } = await resend.emails.send({
+      from: fromEmail,
+      to: toEmail,
+      subject,
+      text: `Please find attached the ${documentType.replace("_", " ")} for ${proposal.client.company_name}.`,
+      attachments: [
+        {
+          filename,
+          content: pdfBuffer,
+        },
+      ],
     });
+
+    if (sendError) {
+      return NextResponse.json({ error: sendError.message }, { status: 500 });
+    }
+
+    if (invoiceId) {
+      await supabase
+        .from("proposal_invoices")
+        .update({ status: "sent", updated_at: new Date().toISOString() })
+        .eq("id", invoiceId);
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("PDF export error:", err);
+    console.error("PDF email error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "PDF generation failed" },
+      { error: err instanceof Error ? err.message : "Email failed" },
       { status: 500 }
     );
   }
-}
-
-function bufferToDataUrl(buffer: Buffer) {
-  return `data:application/pdf;base64,${buffer.toString("base64")}`;
 }

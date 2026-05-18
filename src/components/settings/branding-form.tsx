@@ -20,6 +20,7 @@ export function BrandingForm({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [logoLoading, setLogoLoading] = useState(false);
 
   async function handleBrandingSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,6 +40,8 @@ export function BrandingForm({
         bank_ifsc: (fd.get("bank_ifsc") as string) || null,
         bank_branch: (fd.get("bank_branch") as string) || null,
         bank_upi_id: (fd.get("bank_upi_id") as string) || null,
+        gpay_name: (fd.get("gpay_name") as string) || null,
+        gpay_number: (fd.get("gpay_number") as string) || null,
         show_bank_on_documents: fd.get("show_bank_on_documents") === "on",
       });
       toast.success("Branding updated");
@@ -55,12 +58,15 @@ export function BrandingForm({
     if (!file) return;
     const fd = new FormData();
     fd.set("logo", file);
+    setLogoLoading(true);
     try {
       await uploadLogoAction(fd);
       toast.success("Logo uploaded");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setLogoLoading(false);
     }
   }
 
@@ -86,8 +92,12 @@ export function BrandingForm({
             type="file"
             accept="image/*"
             className="mt-1 max-w-xs"
+            disabled={logoLoading}
             onChange={handleLogoUpload}
           />
+          {logoLoading ? (
+            <p className="mt-1 text-xs text-muted-foreground">Uploading…</p>
+          ) : null}
           <p className="mt-1 text-xs text-muted-foreground">
             Placeholder until you provide the official MuDiHu logo.
           </p>
@@ -162,6 +172,14 @@ export function BrandingForm({
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="bank_account_number">Account number</Label>
+              <Input
+                id="bank_account_number"
+                name="bank_account_number"
+                defaultValue={branding?.bank_account_number ?? ""}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="bank_name">Bank name</Label>
               <Input
                 id="bank_name"
@@ -175,14 +193,6 @@ export function BrandingForm({
                 id="bank_branch"
                 name="bank_branch"
                 defaultValue={branding?.bank_branch ?? ""}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bank_account_number">Account number</Label>
-              <Input
-                id="bank_account_number"
-                name="bank_account_number"
-                defaultValue={branding?.bank_account_number ?? ""}
               />
             </div>
             <div className="space-y-2">
@@ -201,6 +211,24 @@ export function BrandingForm({
                 name="bank_upi_id"
                 defaultValue={branding?.bank_upi_id ?? ""}
                 placeholder="name@upi"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gpay_name">GPay name</Label>
+              <Input
+                id="gpay_name"
+                name="gpay_name"
+                defaultValue={branding?.gpay_name ?? ""}
+                placeholder="MuDiHu"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gpay_number">GPay number</Label>
+              <Input
+                id="gpay_number"
+                name="gpay_number"
+                defaultValue={branding?.gpay_number ?? ""}
+                placeholder="9876543210"
               />
             </div>
             <label className="flex items-center gap-2 sm:col-span-2">

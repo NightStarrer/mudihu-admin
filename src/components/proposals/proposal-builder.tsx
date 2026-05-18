@@ -35,17 +35,19 @@ import {
 } from "@/lib/proposals/calculate-totals";
 import { discountSummaryLine } from "@/lib/proposals/discount";
 import { CoverLetterCard } from "@/components/proposals/cover-letter-card";
-import { DiscountFields } from "@/components/proposals/discount-fields";
+import { PhaseDiscountFields } from "@/components/proposals/phase-discount-fields";
+import { ProposalInvoicesCard } from "@/components/proposals/proposal-invoices-card";
 import { DocumentDatesCard } from "@/components/proposals/document-dates-card";
 import { currencySymbolForUi } from "@/lib/money/currency";
 import type { PdfDocumentType } from "@/lib/proposals/document-types";
 import { DocumentInclusionToggles } from "@/components/proposals/document-inclusion-toggles";
 import type {
+  ProposalInvoice,
   ProposalSectionLibrary,
   ProposalWithRelations,
 } from "@/types/database";
 import { toast } from "sonner";
-import { Plus, Trash2, Download, Sparkles } from "lucide-react";
+import { Plus, Trash2, Download, Sparkles, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { getProposalSuggestions } from "@/lib/ai/providers/index";
 import { clientBriefHref } from "@/components/clients/client-detail-tabs";
@@ -56,13 +58,18 @@ import type { SuggestionSource } from "@/lib/ai/types";
 export function ProposalBuilder({
   proposal,
   library,
+  invoices,
+  balance,
 }: {
   proposal: ProposalWithRelations;
   library: ProposalSectionLibrary[];
+  invoices: ProposalInvoice[];
+  balance: { total: number; invoiced: number; paid: number; remaining: number };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [exporting, setExporting] = useState<PdfDocumentType | null>(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<ProposalSuggestion[]>([]);
   const [suggestionSource, setSuggestionSource] =
     useState<SuggestionSource | null>(null);
@@ -116,6 +123,7 @@ export function ProposalBuilder({
   const firstPhaseId = proposal.phases[0]?.id;
 
   async function loadSuggestions() {
+    setLoadingSuggestions(true);
     const result = await getProposalSuggestions({
       businessCategory: proposal.client.business_category,
       industryTags: proposal.client.industry_tags ?? [],
@@ -140,6 +148,7 @@ export function ProposalBuilder({
           : "AI suggestions ready"
       );
     }
+    setLoadingSuggestions(false);
   }
 
   async function applySuggestion(s: ProposalSuggestion) {
@@ -263,11 +272,10 @@ export function ProposalBuilder({
 
         <DocumentDatesCard proposal={proposal} />
 
-        <DiscountFields
-          proposalId={proposal.id}
-          discountType={proposal.discount_type ?? "none"}
-          discountValue={Number(proposal.discount_value ?? 0)}
-          discountLabel={proposal.discount_label}
+        <ProposalInvoicesCard
+          proposal={proposal}
+          invoices={invoices}
+          balance={balance}
         />
 
         {proposal.phases.map((phase) => (
@@ -322,6 +330,13 @@ export function ProposalBuilder({
                   }
                 />
               </div>
+              <PhaseDiscountFields
+                phaseId={phase.id}
+                proposalId={proposal.id}
+                discountType={phase.discount_type ?? "none"}
+                discountValue={Number(phase.discount_value ?? 0)}
+                discountLabel={phase.discount_label}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               {phase.groups.map((group) => (
@@ -523,19 +538,22 @@ export function ProposalBuilder({
               <span>Subtotal</span>
               <span>{fmt(proposalTotals.subtotal)}</span>
             </div>
-            {proposalTotals.discountAmount > 0 ? (
-              <>
-                <div className="flex justify-between text-primary">
-                  <span>
-                    {discountSummaryLine(discount, proposalTotals.discountAmount)}
-                  </span>
-                  <span>- {fmt(proposalTotals.discountAmount)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">After discount</span>
-                  <span>{fmt(proposalTotals.afterDiscount)}</span>
-                </div>
-              </>
+            {proposalTotals.phaseDiscountTotal > 0 ? (
+              <div className="flex justify-between text-primary">
+                <span>Phase discounts</span>
+                <span>- {fmt(proposalTotals.phaseDiscountTotal)}</span>
+              </div>
+            ) : null}
+            {proposalTotals.globalDiscountAmount > 0 ? (
+              <div className="flex justify-between text-primary">
+                <span>
+                  {discountSummaryLine(
+                    discount,
+                    proposalTotals.globalDiscountAmount
+                  )}
+                </span>
+                <span>- {fmt(proposalTotals.globalDiscountAmount)}</span>
+              </div>
             ) : null}
             <div className="flex justify-between">
               <span>GST ({proposal.gst_rate}%)</span>
@@ -555,12 +573,10 @@ export function ProposalBuilder({
               <span>Subtotal</span>
               <span>{fmt(invoiceTotals.subtotal)}</span>
             </div>
-            {invoiceTotals.discountAmount > 0 ? (
+            {invoiceTotals.phaseDiscountTotal > 0 ? (
               <div className="flex justify-between text-primary">
-                <span>
-                  {discountSummaryLine(discount, invoiceTotals.discountAmount)}
-                </span>
-                <span>- {fmt(invoiceTotals.discountAmount)}</span>
+                <span>Phase discounts</span>
+                <span>- {fmt(invoiceTotals.phaseDiscountTotal)}</span>
               </div>
             ) : null}
             <div className="flex justify-between">
@@ -578,7 +594,11 @@ export function ProposalBuilder({
                 onClick={() => handleExportPdf("proposal")}
                 disabled={exporting !== null}
               >
-                <Download className="mr-2 h-4 w-4" />
+                {exporting === "proposal" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 {exporting === "proposal" ? "Generating…" : "Export proposal"}
               </Button>
               <Button
@@ -587,8 +607,12 @@ export function ProposalBuilder({
                 onClick={() => handleExportPdf("invoice")}
                 disabled={exporting !== null}
               >
-                <Download className="mr-2 h-4 w-4" />
-                {exporting === "invoice" ? "Generating…" : "Export invoice"}
+                {exporting === "invoice" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                {exporting === "invoice" ? "Generating…" : "Export summary invoice"}
               </Button>
               <Button
                 variant="outline"
@@ -596,7 +620,11 @@ export function ProposalBuilder({
                 onClick={() => handleExportPdf("cost_sheet")}
                 disabled={exporting !== null}
               >
-                <Download className="mr-2 h-4 w-4" />
+                {exporting === "cost_sheet" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
                 {exporting === "cost_sheet"
                   ? "Generating…"
                   : "Export cost sheet"}
@@ -619,8 +647,16 @@ export function ProposalBuilder({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button variant="outline" size="sm" onClick={loadSuggestions}>
-              Get suggestions
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={loadingSuggestions}
+              onClick={loadSuggestions}
+            >
+              {loadingSuggestions ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {loadingSuggestions ? "Loading…" : "Get suggestions"}
             </Button>
             {suggestionSource ? (
               <p className="text-xs text-muted-foreground capitalize">

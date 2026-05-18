@@ -32,7 +32,29 @@ export interface BrandingSettings {
   bank_ifsc: string | null;
   bank_branch: string | null;
   bank_upi_id: string | null;
+  gpay_name: string | null;
+  gpay_number: string | null;
   show_bank_on_documents: boolean;
+  updated_at: string;
+}
+
+export type ProposalInvoiceStatus = "draft" | "sent" | "paid";
+
+export interface ProposalInvoice {
+  id: string;
+  agency_id: string;
+  proposal_id: string;
+  phase_id: string;
+  billing_percent: number;
+  amount_subtotal: number;
+  amount_gst: number;
+  amount_total: number;
+  invoice_number: string;
+  invoice_date: string;
+  due_date: string | null;
+  status: ProposalInvoiceStatus;
+  paid_at: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -99,6 +121,9 @@ export interface ProposalPhase extends DocumentInclusion {
   proposal_id: string;
   name: string;
   sort_order: number;
+  discount_type: string;
+  discount_value: number;
+  discount_label: string | null;
 }
 
 export interface ProposalGroup extends DocumentInclusion {
@@ -140,6 +165,8 @@ export interface BankDetails {
   ifsc: string | null;
   branch: string | null;
   upiId: string | null;
+  gpayName: string | null;
+  gpayNumber: string | null;
   showOnDocuments: boolean;
 }
 

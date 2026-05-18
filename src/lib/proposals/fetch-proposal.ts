@@ -35,6 +35,9 @@ export async function fetchProposalWithRelations(
 
   const phasesWithGroups = (phases ?? []).map((phase) => ({
     ...phase,
+    discount_type: (phase.discount_type as string) ?? "none",
+    discount_value: Number(phase.discount_value ?? 0),
+    discount_label: (phase.discount_label as string | null) ?? "Discount",
     include_in_proposal: (phase.include_in_proposal as boolean) ?? true,
     include_in_invoice: (phase.include_in_invoice as boolean) ?? true,
     include_in_cost_sheet: (phase.include_in_cost_sheet as boolean) ?? true,

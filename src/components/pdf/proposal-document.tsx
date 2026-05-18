@@ -13,6 +13,7 @@ import {
   PDF_DOCUMENT_LABELS,
   type PdfDocumentType,
 } from "@/lib/proposals/document-types";
+import type { PdfInvoiceOverride } from "@/lib/pdf/types";
 
 function BankDetailsBlock({
   branding,
@@ -26,11 +27,15 @@ function BankDetailsBlock({
 
   const lines: string[] = [];
   if (bank.accountName) lines.push(`Account name: ${bank.accountName}`);
+  if (bank.accountNumber) lines.push(`Account no.: ${bank.accountNumber}`);
   if (bank.bankName) lines.push(`Bank: ${bank.bankName}`);
   if (bank.branch) lines.push(`Branch: ${bank.branch}`);
-  if (bank.accountNumber) lines.push(`Account no.: ${bank.accountNumber}`);
   if (bank.ifsc) lines.push(`IFSC: ${bank.ifsc}`);
   if (bank.upiId) lines.push(`UPI: ${bank.upiId}`);
+  if (bank.gpayName || bank.gpayNumber) {
+    const gpay = [bank.gpayName, bank.gpayNumber].filter(Boolean).join(" · ");
+    lines.push(`GPay: ${gpay}`);
+  }
 
   if (!lines.length) return null;
 
@@ -46,14 +51,116 @@ function BankDetailsBlock({
   );
 }
 
+function DocumentHeader({
+  branding,
+  styles,
+  labels,
+  documentDate,
+  documentType,
+  proposal,
+}: {
+  branding: BrandingTokens;
+  styles: ReturnType<typeof createPdfStyles>;
+  labels: { title: string };
+  documentDate: string;
+  documentType: PdfDocumentType;
+  proposal: ProposalWithRelations;
+}) {
+  return (
+    <View style={styles.header} fixed>
+      <View style={styles.headerLeft}>
+        {branding.logoUrl ? (
+          <Image src={branding.logoUrl} style={{ width: 42, height: 42 }} />
+        ) : (
+          <View style={styles.logoBox}>
+            <Text style={styles.logoText}>MH</Text>
+          </View>
+        )}
+        <View>
+          <Text style={styles.agencyName}>{branding.agencyName}</Text>
+          <Text style={styles.docType}>{labels.title}</Text>
+          {documentType === "cost_sheet" ? (
+            <Text style={{ fontSize: 8, color: "#888", marginTop: 2 }}>
+              Internal reference — not a tax invoice
+            </Text>
+          ) : null}
+        </View>
+      </View>
+      <View style={styles.headerRight}>
+        <Text style={styles.metaLabel}>Document date</Text>
+        <Text style={styles.metaValue}>{documentDate}</Text>
+        {documentType === "invoice" && proposal.invoice_number ? (
+          <>
+            <Text style={styles.metaLabel}>Invoice no.</Text>
+            <Text style={styles.metaValue}>{proposal.invoice_number}</Text>
+          </>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function LineItemsTable({
+  phases,
+  fmt,
+  styles,
+  documentType,
+}: {
+  phases: ReturnType<typeof filterPhasesForDocument>;
+  fmt: (n: number) => string;
+  styles: ReturnType<typeof createPdfStyles>;
+  documentType: PdfDocumentType;
+}) {
+  const compact = documentType === "invoice";
+
+  if (!phases.length) {
+    return (
+      <Text style={styles.bodyText}>
+        No line items are marked for inclusion in this document.
+      </Text>
+    );
+  }
+
+  return (
+    <>
+      <View style={styles.tableHeader}>
+        <Text style={[styles.tableHeaderText, { flex: 1 }]}>Description</Text>
+        <Text style={[styles.tableHeaderText, { width: 76, textAlign: "right" }]}>
+          Amount
+        </Text>
+      </View>
+      {phases.map((phase) => (
+        <View key={phase.id}>
+          <Text style={styles.phaseTitle}>{phase.name}</Text>
+          {phase.groups.map((group) => (
+            <View key={group.id} style={styles.groupRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.groupTitle}>{group.title}</Text>
+                {documentType === "cost_sheet" && group.description ? (
+                  <Text style={styles.groupDesc}>{group.description}</Text>
+                ) : !compact && group.description ? (
+                  <Text style={styles.groupDesc}>{group.description}</Text>
+                ) : null}
+              </View>
+              <Text style={styles.amount}>{fmt(Number(group.amount))}</Text>
+            </View>
+          ))}
+        </View>
+      ))}
+    </>
+  );
+}
+
 export function ProposalDocument({
   proposal,
   branding,
   documentType = "proposal",
+  invoiceOverride,
 }: {
   proposal: ProposalWithRelations;
   branding: BrandingTokens;
   documentType?: PdfDocumentType;
+  invoiceOverride?: PdfInvoiceOverride;
 }) {
   const styles = createPdfStyles(branding);
   const labels = PDF_DOCUMENT_LABELS[documentType];
@@ -71,7 +178,9 @@ export function ProposalDocument({
     (proposal.payment_terms as { text?: string })?.text ?? "";
   const showBank =
     documentType === "invoice" || documentType === "cost_sheet";
-  const documentDate = getDocumentDate(proposal, documentType);
+  const documentDate = invoiceOverride
+    ? formatPdfDateShort(invoiceOverride.invoiceDate)
+    : getDocumentDate(proposal, documentType);
   const generatedAt = new Date().toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -81,45 +190,68 @@ export function ProposalDocument({
   });
 
   const customMessage = proposal.custom_notes?.trim();
+  const timelineText =
+    proposal.timeline && typeof proposal.timeline === "object"
+      ? (proposal.timeline as { text?: string }).text
+      : null;
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header} fixed>
-          <View style={styles.headerLeft}>
-            {branding.logoUrl ? (
-              <Image src={branding.logoUrl} style={{ width: 42, height: 42 }} />
-            ) : (
-              <View style={styles.logoBox}>
-                <Text style={styles.logoText}>MH</Text>
-              </View>
-            )}
-            <View>
-              <Text style={styles.agencyName}>{branding.agencyName}</Text>
-              <Text style={styles.docType}>{labels.title}</Text>
-            </View>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.metaLabel}>Document date</Text>
-            <Text style={styles.metaValue}>{documentDate}</Text>
-            {documentType === "invoice" && proposal.invoice_number ? (
-              <>
-                <Text style={styles.metaLabel}>Invoice no.</Text>
-                <Text style={styles.metaValue}>{proposal.invoice_number}</Text>
-              </>
-            ) : null}
-          </View>
-        </View>
+        <DocumentHeader
+          branding={branding}
+          styles={styles}
+          labels={labels}
+          documentDate={documentDate}
+          documentType={documentType}
+          proposal={proposal}
+        />
 
         <View style={styles.titleBlock}>
           <Text style={styles.title}>{proposal.title}</Text>
-          {proposal.description ? (
+          {proposal.description && documentType !== "invoice" ? (
             <Text style={styles.subtitle}>{proposal.description}</Text>
+          ) : null}
+          {documentType === "invoice" && invoiceOverride ? (
+            <Text style={styles.subtitle}>
+              Billing: {invoiceOverride.billingPercent}% of phase &quot;
+              {invoiceOverride.phaseName}&quot;
+            </Text>
           ) : null}
         </View>
 
-        {customMessage ? (
+        {documentType === "invoice" && invoiceOverride ? (
+          <View
+            style={{
+              marginBottom: 16,
+              padding: 14,
+              backgroundColor: branding.primaryColor,
+              borderRadius: 6,
+            }}
+          >
+            <Text style={{ fontSize: 8, color: "#fff", opacity: 0.85 }}>
+              AMOUNT DUE
+            </Text>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "bold",
+                color: "#fff",
+                marginTop: 4,
+              }}
+            >
+              {fmt(invoiceOverride.amountTotal)}
+            </Text>
+            <Text style={{ fontSize: 8, color: "#fff", marginTop: 6 }}>
+              Subtotal {fmt(invoiceOverride.amountSubtotal)} + GST{" "}
+              {fmt(invoiceOverride.amountGst)}
+            </Text>
+          </View>
+        ) : null}
+
+        {customMessage && documentType === "proposal" ? (
           <View style={styles.messageBox}>
+            <Text style={styles.messageLabel}>Message</Text>
             <Text style={styles.messageText}>{customMessage}</Text>
           </View>
         ) : null}
@@ -143,9 +275,7 @@ export function ProposalDocument({
 
           <View style={styles.infoCard}>
             <Text style={styles.infoCardLabel}>Details</Text>
-            <Text style={styles.infoLine}>
-              Currency: {currency}
-            </Text>
+            <Text style={styles.infoLine}>Currency: {currency}</Text>
             {documentType === "proposal" && proposal.proposal_date ? (
               <Text style={styles.infoLine}>
                 Valid from: {formatPdfDateShort(proposal.proposal_date)}
@@ -169,99 +299,114 @@ export function ProposalDocument({
           </View>
         </View>
 
-        {phases.length === 0 ? (
-          <Text style={styles.bodyText}>
-            No line items are marked for inclusion in this document. Update
-            inclusion settings on the proposal and export again.
-          </Text>
-        ) : (
-          <>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderText, { flex: 1 }]}>
-                Description
-              </Text>
-              <Text style={[styles.tableHeaderText, { width: 76, textAlign: "right" }]}>
-                Amount
-              </Text>
-            </View>
-            {phases.map((phase) => (
-              <View key={phase.id}>
-                <Text style={styles.phaseTitle}>{phase.name}</Text>
-                {phase.groups.map((group) => (
-                  <View key={group.id} style={styles.groupRow}>
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={styles.groupTitle}>{group.title}</Text>
-                      {group.description ? (
-                        <Text style={styles.groupDesc}>{group.description}</Text>
-                      ) : null}
-                    </View>
-                    <Text style={styles.amount}>
-                      {fmt(Number(group.amount))}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            ))}
-          </>
-        )}
+        <LineItemsTable
+          phases={phases}
+          fmt={fmt}
+          styles={styles}
+          documentType={documentType}
+        />
 
-        <View style={styles.totalsBox}>
-          {totals.phaseTotals.map((pt) => (
-            <View key={pt.phaseId} style={styles.totalRow}>
-              <Text>{pt.phaseName}</Text>
-              <Text>{fmt(pt.subtotal)}</Text>
-            </View>
-          ))}
-          <View style={styles.totalDivider}>
+        {invoiceOverride ? (
+          <View style={styles.totalsBox}>
             <View style={styles.totalRow}>
-              <Text>Subtotal</Text>
-              <Text>{fmt(totals.subtotal)}</Text>
+              <Text>Subtotal ({invoiceOverride.billingPercent}% of phase)</Text>
+              <Text>{fmt(invoiceOverride.amountSubtotal)}</Text>
             </View>
-            {totals.discountAmount > 0 ? (
-              <View style={styles.totalRow}>
-                <Text>
-                  {discountSummaryLine(discount, totals.discountAmount)}
-                </Text>
-                <Text>- {fmt(totals.discountAmount)}</Text>
-              </View>
-            ) : null}
-            {totals.discountAmount > 0 ? (
-              <View style={styles.totalRow}>
-                <Text>Amount after discount</Text>
-                <Text>{fmt(totals.afterDiscount)}</Text>
-              </View>
-            ) : null}
             <View style={styles.totalRow}>
               <Text>GST ({proposal.gst_rate}%)</Text>
-              <Text>{fmt(totals.gstAmount)}</Text>
+              <Text>{fmt(invoiceOverride.amountGst)}</Text>
             </View>
             <View style={[styles.totalRow, { marginTop: 6 }]}>
               <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
-              <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>
+              <Text style={styles.grandTotal}>
+                {fmt(invoiceOverride.amountTotal)}
+              </Text>
             </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.totalsBox}>
+            {documentType === "proposal" &&
+              totals.phaseTotals.map((pt) => (
+                <View key={pt.phaseId}>
+                  <View style={styles.totalRow}>
+                    <Text>{pt.phaseName}</Text>
+                    <Text>{fmt(pt.subtotal)}</Text>
+                  </View>
+                  {pt.discountAmount > 0 ? (
+                    <View style={styles.totalRow}>
+                      <Text style={{ fontSize: 8, color: "#666" }}>
+                        Phase discount
+                      </Text>
+                      <Text style={{ fontSize: 8, color: "#666" }}>
+                        - {fmt(pt.discountAmount)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            <View style={styles.totalDivider}>
+              <View style={styles.totalRow}>
+                <Text>Subtotal</Text>
+                <Text>{fmt(totals.subtotal)}</Text>
+              </View>
+              {totals.phaseDiscountTotal > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text>Phase discounts</Text>
+                  <Text>- {fmt(totals.phaseDiscountTotal)}</Text>
+                </View>
+              ) : null}
+              {totals.globalDiscountAmount > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text>
+                    {discountSummaryLine(
+                      discount,
+                      totals.globalDiscountAmount
+                    )}
+                  </Text>
+                  <Text>- {fmt(totals.globalDiscountAmount)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.totalRow}>
+                <Text>GST ({proposal.gst_rate}%)</Text>
+                <Text>{fmt(totals.gstAmount)}</Text>
+              </View>
+              <View style={[styles.totalRow, { marginTop: 6 }]}>
+                <Text style={styles.grandTotal}>{labels.totalLabel}</Text>
+                <Text style={styles.grandTotal}>{fmt(totals.total)}</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {showBank ? (
           <BankDetailsBlock branding={branding} styles={styles} />
         ) : null}
 
-        {paymentTerms ? (
+        {paymentTerms && documentType !== "cost_sheet" ? (
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Payment terms</Text>
             <Text style={styles.bodyText}>{paymentTerms}</Text>
           </View>
         ) : null}
 
-        {proposal.complimentary_services ? (
+        {proposal.complimentary_services && documentType === "proposal" ? (
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Complimentary services</Text>
             <Text style={styles.bodyText}>{proposal.complimentary_services}</Text>
           </View>
         ) : null}
 
+        {timelineText && documentType === "proposal" ? (
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Timeline</Text>
+            <Text style={styles.bodyText}>{timelineText}</Text>
+          </View>
+        ) : null}
+
         <Text style={styles.footer} fixed>
-          {branding.footerText} · Generated {generatedAt}
+          {branding.footerText}
+          {documentType === "cost_sheet" ? " · Internal use only" : ""} · Generated{" "}
+          {generatedAt}
         </Text>
       </Page>
     </Document>

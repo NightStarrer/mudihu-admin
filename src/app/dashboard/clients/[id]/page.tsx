@@ -12,6 +12,9 @@ import { cn } from "@/lib/utils";
 import type { Client } from "@/types/database";
 import { parseProjectBrief } from "@/types/client-project-brief";
 
+const CLIENT_COLUMNS =
+  "id, agency_id, company_name, contact_person, email, phone, gst_number, address, business_category, industry_tags, project_brief, notes, currency_code, created_at, updated_at";
+
 export default async function ClientDetailPage({
   params,
   searchParams,
@@ -23,18 +26,27 @@ export default async function ClientDetailPage({
   const { tab } = await searchParams;
   const supabase = await createClient();
 
-  const { data: client } = await supabase
+  const { data: client, error: clientError } = await supabase
     .from("clients")
-    .select("*")
+    .select(CLIENT_COLUMNS)
     .eq("id", id)
     .single();
 
+  if (clientError) {
+    console.error("Client fetch error:", clientError.message);
+    if (clientError.code === "PGRST116") notFound();
+    throw new Error(clientError.message);
+  }
+
   if (!client) notFound();
 
-  const [{ data: notes }, { data: proposals }] = await Promise.all([
+  const [
+    { data: notes, error: notesError },
+    { data: proposals, error: proposalsError },
+  ] = await Promise.all([
     supabase
       .from("client_notes")
-      .select("*")
+      .select("id, client_id, agency_id, content, created_by, created_at")
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
     supabase
@@ -43,6 +55,10 @@ export default async function ClientDetailPage({
       .eq("client_id", id)
       .order("created_at", { ascending: false }),
   ]);
+
+  if (notesError) console.error("Client notes fetch error:", notesError.message);
+  if (proposalsError)
+    console.error("Client proposals fetch error:", proposalsError.message);
 
   const typedClient = client as Client;
   const showEditBrief = tab !== "brief";

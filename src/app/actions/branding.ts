@@ -17,6 +17,8 @@ export async function updateBrandingAction(data: {
   bank_ifsc?: string | null;
   bank_branch?: string | null;
   bank_upi_id?: string | null;
+  gpay_name?: string | null;
+  gpay_number?: string | null;
   show_bank_on_documents?: boolean;
 }) {
   const { profile } = await requireAdmin();
